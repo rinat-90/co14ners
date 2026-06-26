@@ -5,6 +5,22 @@
   "workspaces": ["packages/*"],
   "scripts": {
     "dev:api": "bun run --cwd packages/api dev",
-    "dev:app": "bun run --cwd packages/app dev"
+    "dev:app": "bun run --cwd packages/app dev",
+    "lint": "eslint packages/api/src && eslint --config packages/app/eslint.config.mjs packages/app/src",
+    "lint:fix": "eslint packages/api/src --fix && eslint --config packages/app/eslint.config.mjs packages/app/src --fix",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx}\""
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.0.0",
+    "@eslint/js": "^9.0.0",
+    "@next/eslint-plugin-next": "^15.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "eslint-plugin-react": "^7.0.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "prettier": "^3.0.0",
+    "typescript-eslint": "^8.0.0"
   }
 }
