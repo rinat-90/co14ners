@@ -37,19 +37,33 @@ enum MountainRange {
 // ─── Core models ──────────────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String?
-  passwordHash String
-  role         Role     @default(USER)
-  avatar       String?
-  bio          String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  name                String?
+  passwordHash        String
+  role                Role      @default(USER)
+  avatar              String?
+  bio                 String?
+  resetPasswordToken  String?   @unique
+  resetPasswordExpiry DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  reviews     Review[]
-  favorites   Favorite[]
-  completions Completion[]
+  reviews       Review[]
+  favorites     Favorite[]
+  completions   Completion[]
+  refreshTokens RefreshToken[]
+}
+
+/// Stored refresh tokens — deleted on logout, rotated on refresh
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Mountain {
