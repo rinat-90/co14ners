@@ -17,6 +17,11 @@ COPY packages/api ./packages/api
 COPY packages/app ./packages/app
 
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# Injected at build time — set NEXT_PUBLIC_API_URL in Railway's build variables
+ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN cd packages/app && bun run build
 
 # ── runner stage: minimal production image ────────────────────────────────────
