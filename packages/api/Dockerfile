@@ -19,4 +19,4 @@ RUN cd packages/api && bunx prisma generate
 EXPOSE 3001
 ENV PORT=3001
 
-CMD ["bun", "run", "packages/api/src/index.ts"]
+CMD ["sh", "-c", "cd packages/api && bunx prisma db push --skip-generate --accept-data-loss && cd /app && bun run packages/api/src/index.ts"]
