@@ -10,7 +10,7 @@ COPY package.json bun.lock ./
 COPY tsconfig.json ./
 COPY packages/api/package.json ./packages/api/package.json
 COPY packages/app/package.json ./packages/app/package.json
-RUN bun install
+RUN bun install --ignore-scripts
 
 # Copy full source (after install so the layer above stays cached)
 COPY packages/api ./packages/api
@@ -23,7 +23,7 @@ ARG NEXT_PUBLIC_API_URL=http://localhost:3001
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Generate Prisma client so @prisma/client types (e.g. Role) are available
-RUN packages/api/node_modules/.bin/prisma generate --schema=packages/api/prisma/schema.prisma
+RUN cd packages/api && node -e "const p=require.resolve('prisma/build/index.js');require('child_process').execSync('node '+p+' generate',{stdio:'inherit'})"
 
 RUN cd packages/app && bun run build
 
