@@ -1,0 +1,10 @@
+{
+  "name": "co14ners",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:api": "bun run --cwd packages/api dev",
+    "dev:app": "bun run --cwd packages/app dev"
+  }
+}
