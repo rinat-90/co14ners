@@ -7,10 +7,152 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+/// Yosemite Decimal System class used for Colorado 14er routes
+enum Difficulty {
+  CLASS_1 // Well-maintained trail, no scrambling
+  CLASS_2 // Off-trail, some scrambling on loose rock
+  CLASS_3 // Scrambling with exposure, hands needed
+  CLASS_4 // Technical scrambling, rope strongly suggested
+  CLASS_5 // Technical rock climbing required
+}
+
+enum MountainRange {
+  SAWATCH
+  ELK
+  SAN_JUAN
+  TENMILE_MOSQUITO
+  FRONT
+  SANGRE_DE_CRISTO
+  OTHER
+}
+
+// ─── Core models ──────────────────────────────────────────────────────────────
+
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         Role     @default(USER)
+  avatar       String?
+  bio          String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  reviews     Review[]
+  favorites   Favorite[]
+  completions Completion[]
+}
+
+model Mountain {
+  id                 String        @id @default(cuid())
+  name               String
+  /// Elevation in feet
+  altitude           Int
+  difficulty         Difficulty
+  range              MountainRange
+  latitude           Float
+  longitude          Float
+  description        String?
+  /// Starting elevation in feet
+  trailheadElevation Int?
+  /// Total elevation gain in feet
+  elevationGain      Int?
+  /// Round-trip distance in miles
+  roundTripMiles     Float?
+  /// Typical time to complete round-trip in hours
+  estimatedHours     Float?
+  imageUrl           String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  trails      Trail[]
+  reviews     Review[]
+  favorites   Favorite[]
+  completions Completion[]
+}
+
+/// A specific named route up a mountain (e.g. "East Ridge", "North Face")
+model Trail {
+  id                 String     @id @default(cuid())
+  mountainId         String
+  name               String
+  difficulty         Difficulty
+  /// Starting elevation in feet
+  trailheadElevation Int?
+  /// Total elevation gain in feet
+  elevationGain      Int?
+  /// Round-trip distance in miles
+  roundTripMiles     Float?
+  /// Typical time to complete round-trip in hours
+  estimatedHours     Float?
+  description        String?
+  imageUrl           String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  mountain    Mountain     @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  completions Completion[]
+}
+
+// ─── User activity models ──────────────────────────────────────────────────────
+
+/// One review per user per mountain; rating is 1–5
+model Review {
+  id         String    @id @default(cuid())
+  userId     String
+  mountainId String
+  /// Integer rating from 1 (poor) to 5 (excellent)
+  rating     Int
+  title      String?
+  body       String
+  /// Date the user actually hiked (may differ from review date)
+  hikedAt    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mountainId])
+}
+
+/// Saved/bookmarked mountains — one per user per mountain
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  mountainId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mountainId])
+}
+
+/// A logged summit — users can summit the same mountain multiple times
+model Completion {
+  id          String    @id @default(cuid())
+  userId      String
+  mountainId  String
+  /// Specific trail used for this summit (optional)
+  trailId     String?
+  /// When set to true this entry is hidden from other users
+  isPrivate   Boolean   @default(false)
+  completedAt DateTime
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  trail    Trail?   @relation(fields: [trailId], references: [id])
 }
