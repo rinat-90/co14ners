@@ -2,6 +2,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
+/// Run with: bun run db:seed  (or: prisma db seed)
+/// Prisma will call the command below when `prisma db seed` is invoked.
+// prisma seed is configured in package.json under "prisma.seed"
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")

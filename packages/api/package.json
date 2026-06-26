@@ -12,6 +12,7 @@
     "lint:fix": "eslint src --fix",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
+    "db:seed": "bun run prisma/seed.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
@@ -23,6 +24,9 @@
     "jsonwebtoken": "^9.0.0",
     "nodemailer": "^6.9.0",
     "zod": "^3.23.0"
+  },
+  "prisma": {
+    "seed": "bun run prisma/seed.ts"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -33,12 +33,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Run db push on startup (use `prisma migrate deploy` once you add migrations)
-    command: >
-      sh -c "cd packages/api &&
-             bunx prisma db push --skip-generate --accept-data-loss &&
-             cd /app &&
-             bun run packages/api/src/index.ts"
 
   app:
     build:

@@ -9,7 +9,7 @@ import { createContext } from "./trpc.js";
 try {
   const schemaDir = new URL("../prisma", import.meta.url).pathname;
   execSync(
-    `bunx prisma db push --skip-generate --accept-data-loss --schema=${schemaDir}/schema.prisma`,
+    `packages/api/node_modules/.bin/prisma db push --accept-data-loss --schema=${schemaDir}/schema.prisma`,
     { stdio: "inherit" }
   );
 } catch (err) {

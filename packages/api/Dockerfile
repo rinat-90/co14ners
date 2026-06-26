@@ -1,5 +1,5 @@
 # Build context: monorepo root
-FROM oven/bun:1-alpine
+FROM oven/bun:1
 WORKDIR /app
 
 # Copy workspace manifests first (cached layer for installs)
@@ -14,7 +14,7 @@ RUN bun install
 COPY packages/api ./packages/api
 
 # Generate Prisma client
-RUN cd packages/api && bunx prisma generate
+RUN packages/api/node_modules/.bin/prisma generate --schema=packages/api/prisma/schema.prisma
 
 EXPOSE 3001
 ENV PORT=3001
