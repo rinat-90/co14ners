@@ -23,7 +23,7 @@ ARG NEXT_PUBLIC_API_URL=http://localhost:3001
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Generate Prisma client so @prisma/client types (e.g. Role) are available
-RUN cd packages/api && bunx prisma generate
+RUN packages/api/node_modules/.bin/prisma generate --schema=packages/api/prisma/schema.prisma
 
 RUN cd packages/app && bun run build
 
