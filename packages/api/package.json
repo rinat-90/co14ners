@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "db:generate": "prisma generate",

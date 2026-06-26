@@ -6,6 +6,7 @@
   "scripts": {
     "dev:api": "bun run --cwd packages/api dev",
     "dev:app": "bun run --cwd packages/app dev",
+    "test": "bun run --cwd packages/api test",
     "lint": "eslint packages/api/src && eslint --config packages/app/eslint.config.mjs packages/app/src",
     "lint:fix": "eslint packages/api/src --fix && eslint --config packages/app/eslint.config.mjs packages/app/src --fix",
     "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\"",
