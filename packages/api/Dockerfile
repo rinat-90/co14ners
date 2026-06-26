@@ -14,7 +14,7 @@ RUN bun install
 COPY packages/api ./packages/api
 
 # Generate Prisma client
-RUN packages/api/node_modules/.bin/prisma generate --schema=packages/api/prisma/schema.prisma
+RUN node -e "const p=require.resolve('prisma/build/index.js');require('child_process').execSync('node '+p+' generate --schema=packages/api/prisma/schema.prisma',{stdio:'inherit'})"
 
 EXPOSE 3001
 ENV PORT=3001

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { execSync } from "child_process";
+import { createRequire } from "module";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./router.js";
 import { createContext } from "./trpc.js";
@@ -8,8 +9,9 @@ import { createContext } from "./trpc.js";
 // Run schema sync before starting the server so tables always exist
 try {
   const schemaDir = new URL("../prisma", import.meta.url).pathname;
+  const prismaCli = createRequire(import.meta.url).resolve("prisma/build/index.js");
   execSync(
-    `packages/api/node_modules/.bin/prisma db push --accept-data-loss --schema=${schemaDir}/schema.prisma`,
+    `bun "${prismaCli}" db push --accept-data-loss --schema=${schemaDir}/schema.prisma`,
     { stdio: "inherit" }
   );
 } catch (err) {
