@@ -8,7 +8,7 @@ COPY tsconfig.json ./
 COPY packages/api/package.json ./packages/api/package.json
 
 # Install dependencies
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy API source
 COPY packages/api ./packages/api

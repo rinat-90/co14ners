@@ -1,24 +1,21 @@
 # Build context: monorepo root
 
-# ── deps stage: install dependencies (cached) ─────────────────────────────────
-FROM oven/bun:1-alpine AS deps
+# ── builder stage: install + compile Next.js ──────────────────────────────────
+# Debian-based (not Alpine) — Next.js SWC native binaries require glibc
+FROM oven/bun:1 AS builder
 WORKDIR /app
+
+# Copy manifests first so this layer is cached until deps change
 COPY package.json bun.lock ./
 COPY tsconfig.json ./
 COPY packages/api/package.json ./packages/api/package.json
 COPY packages/app/package.json ./packages/app/package.json
-RUN bun install --frozen-lockfile
+RUN bun install
 
-# ── builder stage: compile Next.js ────────────────────────────────────────────
-FROM oven/bun:1-alpine AS builder
-WORKDIR /app
-COPY package.json bun.lock ./
-COPY tsconfig.json ./
-COPY --from=deps /app/node_modules ./node_modules
+# Copy full source (after install so the layer above stays cached)
 COPY packages/api ./packages/api
 COPY packages/app ./packages/app
-# Recreate workspace symlinks with source present
-RUN bun install --frozen-lockfile
+
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN cd packages/app && bun run build
 
@@ -40,5 +37,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-# server.js is at packages/app/server.js inside the standalone output
+# server.js lives at packages/app/server.js inside the standalone output
 CMD ["node", "packages/app/server.js"]
