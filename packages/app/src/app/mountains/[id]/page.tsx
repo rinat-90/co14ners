@@ -279,7 +279,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
         </Box>
       </Box>
 
-      <Box sx={{ maxWidth: 900, mx: "auto", px: { xs: 2, md: 4 }, mt: -4 }}>
+      <Box sx={{ maxWidth: 900, mx: "auto", px: { xs: 2, md: 4 }, mt: -4, zIndex: 2, position: "relative" }}>
         {/* Stats row */}
         <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap mb={4}>
           {isLoading ? (
@@ -325,7 +325,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
 
             {/* Trails */}
             {!isLoading && mountain!.trails.length > 0 && (
-              <Paper sx={{ p: 3, borderRadius: 3, mt: 3 }}>
+              <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography variant="h6" fontWeight={700} gutterBottom>
                   Routes ({mountain!.trails.length})
                 </Typography>

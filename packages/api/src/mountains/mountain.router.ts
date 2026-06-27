@@ -10,4 +10,7 @@ export const mountainRouter = router({
   get: publicProcedure
     .input(getMountainSchema)
     .query(({ input }) => mountainService.getById(input.id)),
+
+  globalStats: publicProcedure
+    .query(() => mountainService.globalStats()),
 });

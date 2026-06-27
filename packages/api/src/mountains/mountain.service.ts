@@ -20,6 +20,15 @@ export const mountainService = {
     });
   },
 
+  async globalStats() {
+    const [mountains, summits, saves] = await Promise.all([
+      prisma.mountain.count(),
+      prisma.completion.count(),
+      prisma.favorite.count(),
+    ]);
+    return { mountains, summits, saves };
+  },
+
   async getById(id: string) {
     const mountain = await prisma.mountain.findUnique({
       where: { id },

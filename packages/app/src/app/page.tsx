@@ -20,10 +20,12 @@ export default function HomePage() {
   const router = useRouter();
   const { accessToken, isLoading } = useAuth();
 
-  const me = trpc.auth.me.useQuery(undefined, {
+  const { data: me } = trpc.user.me.useQuery(undefined, {
     enabled: !!accessToken,
     retry: false,
   });
+
+  const { data: stats } = trpc.mountain.globalStats.useQuery();
 
   useEffect(() => {
     if (!isLoading && !accessToken) {
@@ -31,7 +33,7 @@ export default function HomePage() {
     }
   }, [isLoading, accessToken, router]);
 
-  if (isLoading || me.isLoading) {
+  if (isLoading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
         <CircularProgress />
@@ -39,7 +41,7 @@ export default function HomePage() {
     );
   }
 
-  const user = me.data;
+  const user = me;
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
@@ -79,15 +81,10 @@ export default function HomePage() {
           <Paper sx={{ p: 3, borderRadius: 3, flex: 1, textAlign: "center" }}>
             <TerrainIcon sx={{ fontSize: 40, color: "primary.main", mb: 1 }} />
             <Typography variant="h5" fontWeight={700}>
-              58
+              {stats?.mountains ?? "—"}
             </Typography>
             <Typography color="text.secondary">Total 14ers</Typography>
-            <Button
-              component={NextLink}
-              href="/mountains"
-              size="small"
-              sx={{ mt: 1.5 }}
-            >
+            <Button component={NextLink} href="/mountains" size="small" sx={{ mt: 1.5 }}>
               View all peaks →
             </Button>
           </Paper>
@@ -95,10 +92,10 @@ export default function HomePage() {
           <Paper sx={{ p: 3, borderRadius: 3, flex: 1, textAlign: "center" }}>
             <EmojiEventsIcon sx={{ fontSize: 40, color: "secondary.main", mb: 1 }} />
             <Typography variant="h5" fontWeight={700}>
-              0
+              {stats?.summits ?? "—"}
             </Typography>
             <Typography color="text.secondary">Summits logged</Typography>
-            <Button size="small" sx={{ mt: 1.5 }} disabled>
+            <Button component={NextLink} href="/mountains" size="small" sx={{ mt: 1.5 }}>
               Log a summit →
             </Button>
           </Paper>
@@ -106,10 +103,10 @@ export default function HomePage() {
           <Paper sx={{ p: 3, borderRadius: 3, flex: 1, textAlign: "center" }}>
             <ExploreIcon sx={{ fontSize: 40, color: "warning.main", mb: 1 }} />
             <Typography variant="h5" fontWeight={700}>
-              0
+              {stats?.saves ?? "—"}
             </Typography>
             <Typography color="text.secondary">Saved peaks</Typography>
-            <Button size="small" sx={{ mt: 1.5 }} disabled>
+            <Button component={NextLink} href="/profile" size="small" sx={{ mt: 1.5 }}>
               View saved →
             </Button>
           </Paper>

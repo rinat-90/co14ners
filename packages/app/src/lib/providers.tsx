@@ -9,10 +9,21 @@ import { trpc } from "./trpc";
 import { theme } from "./theme";
 import { AuthProvider, useAuth } from "./auth-context";
 
-/** Runs inside tRPC + Auth providers — fetches fresh user data on load */
+/** Runs inside tRPC + Auth providers — fetches fresh user data and handles token refresh */
 function UserHydrator() {
-  const { accessToken, setUser } = useAuth();
-  const { data } = trpc.user.me.useQuery(undefined, {
+  const { accessToken, setUser, setTokens, logout } = useAuth();
+  const utils = trpc.useUtils();
+
+  const refreshMutation = trpc.auth.refresh.useMutation({
+    onSuccess: (data) => {
+      setTokens(data.accessToken, data.refreshToken);
+      // Re-fetch user after token is updated in localStorage
+      utils.user.me.invalidate();
+    },
+    onError: () => logout(),
+  });
+
+  const { data, error } = trpc.user.me.useQuery(undefined, {
     enabled: !!accessToken,
     retry: false,
     staleTime: 5 * 60 * 1000,
@@ -21,6 +32,17 @@ function UserHydrator() {
   useEffect(() => {
     if (data) setUser(data);
   }, [data, setUser]);
+
+  useEffect(() => {
+    if (!error) return;
+    const httpStatus = (error as { data?: { httpStatus?: number } }).data?.httpStatus;
+    if (httpStatus === 401) {
+      const rt = typeof window !== "undefined" ? localStorage.getItem("refreshToken") : null;
+      if (rt) refreshMutation.mutate({ refreshToken: rt });
+      else logout();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
 
   return null;
 }
