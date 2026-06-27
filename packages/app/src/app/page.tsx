@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
 import NextLink from "next/link";
-import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TerrainIcon from "@mui/icons-material/Terrain";
@@ -17,31 +14,9 @@ import { useAuth } from "@/lib/auth-context";
 import AppHeader from "@/components/AppHeader";
 
 export default function HomePage() {
-  const router = useRouter();
-  const { accessToken, isLoading } = useAuth();
-
-  const { data: me } = trpc.user.me.useQuery(undefined, {
-    enabled: !!accessToken,
-    retry: false,
-  });
+  const { user } = useAuth();
 
   const { data: stats } = trpc.mountain.globalStats.useQuery();
-
-  useEffect(() => {
-    if (!isLoading && !accessToken) {
-      router.push("/login");
-    }
-  }, [isLoading, accessToken, router]);
-
-  if (isLoading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  const user = me;
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>

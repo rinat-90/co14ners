@@ -2,6 +2,7 @@
 
 import { use, useState } from "react";
 import NextLink from "next/link";
+import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -10,10 +11,10 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Grid from "@mui/material/Grid";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
+import Rating from "@mui/material/Rating";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
@@ -24,10 +25,14 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import BookmarkAddIcon from "@mui/icons-material/BookmarkAdd";
 import BookmarkAddedIcon from "@mui/icons-material/BookmarkAdded";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
 import NaturePeopleIcon from "@mui/icons-material/NaturePeople";
+import RateReviewIcon from "@mui/icons-material/RateReview";
 import RouteIcon from "@mui/icons-material/Route";
+import StarIcon from "@mui/icons-material/Star";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AppHeader from "@/components/AppHeader";
@@ -35,6 +40,19 @@ import DifficultyChip from "@/components/mountains/DifficultyChip";
 import RangeLabel from "@/components/mountains/RangeLabel";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function initials(name: string | null | undefined, email: string) {
+  if (name) return name.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
+  return email.slice(0, 2).toUpperCase();
+}
+
+function fmtDate(d: Date | string) {
+  return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+// ── Stat card ──────────────────────────────────────────────────────────────────
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
@@ -64,7 +82,7 @@ function LogSummitDialog({
   const [date, setDate] = useState(today);
   const [notes, setNotes] = useState("");
   const [trailId, setTrailId] = useState("");
-  const [isPrivate, setIsPrivate] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(true);
 
   const logMutation = trpc.user.logSummit.useMutation({
     onSuccess: () => {
@@ -75,7 +93,6 @@ function LogSummitDialog({
       setDate(today);
       setNotes("");
       setTrailId("");
-      setIsPrivate(false);
       onClose();
     },
   });
@@ -109,18 +126,20 @@ function LogSummitDialog({
             </TextField>
           )}
           <TextField
-            label="Notes"
+            label="Private notes"
             multiline
             rows={4}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Trail conditions, weather, who you went with…"
+            placeholder="Trail conditions, how you felt, who you went with… (only visible to you)"
             fullWidth
           />
-          <FormControlLabel
-            control={<Switch checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />}
-            label="Private (only visible to you)"
-          />
+          <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            🔒 Notes are always private. Want to share your experience?{" "}
+            <Box component="span" sx={{ color: "primary.main", cursor: "pointer" }} onClick={onClose}>
+              Write a public review instead.
+            </Box>
+          </Typography>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -142,6 +161,262 @@ function LogSummitDialog({
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+// ── Write / Edit Review dialog ─────────────────────────────────────────────────
+
+function ReviewDialog({
+  open,
+  onClose,
+  mountainId,
+  existing,
+}: {
+  open: boolean;
+  onClose: () => void;
+  mountainId: string;
+  existing?: { id: string; rating: number; title: string | null; body: string; hikedAt: Date | string | null } | null;
+}) {
+  const utils = trpc.useUtils();
+  const [rating, setRating] = useState(existing?.rating ?? 0);
+  const [title, setTitle] = useState(existing?.title ?? "");
+  const [body, setBody] = useState(existing?.body ?? "");
+
+  const invalidate = () => {
+    utils.review.list.invalidate({ mountainId });
+    utils.review.myReview.invalidate({ mountainId });
+    utils.mountain.get.invalidate({ id: mountainId });
+    onClose();
+  };
+
+  const addMutation = trpc.review.add.useMutation({ onSuccess: invalidate });
+  const updateMutation = trpc.review.update.useMutation({ onSuccess: invalidate });
+
+  const isPending = addMutation.isPending || updateMutation.isPending;
+  const error = addMutation.error?.message || updateMutation.error?.message;
+
+  const handleOpen = () => {
+    setRating(existing?.rating ?? 0);
+    setTitle(existing?.title ?? "");
+    setBody(existing?.body ?? "");
+  };
+
+  const handleSubmit = () => {
+    if (existing) {
+      updateMutation.mutate({ id: existing.id, rating, title: title || null, body });
+    } else {
+      addMutation.mutate({ mountainId, rating, title: title || undefined, body });
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      TransitionProps={{ onEnter: handleOpen }}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 3 } }}
+    >
+      <DialogTitle fontWeight={700}>{existing ? "Edit Review" : "Write a Review"}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
+          <Box>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Overall rating *
+            </Typography>
+            <Rating
+              value={rating}
+              onChange={(_, v) => setRating(v ?? 0)}
+              size="large"
+              emptyIcon={<StarIcon fontSize="inherit" />}
+            />
+          </Box>
+          <TextField
+            label="Title (optional)"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Summarize your experience"
+            fullWidth
+          />
+          <TextField
+            label="Your review *"
+            multiline
+            rows={5}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="What was the trail like? Weather conditions? Tips for others?"
+            fullWidth
+          />
+          {error && (
+            <Typography variant="caption" color="error">{error}</Typography>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="contained"
+          disabled={!rating || !body.trim() || isPending}
+          onClick={handleSubmit}
+        >
+          {isPending ? "Saving…" : existing ? "Update Review" : "Post Review"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ── Reviews section ────────────────────────────────────────────────────────────
+
+function ReviewsSection({ mountainId, accessToken }: { mountainId: string; accessToken: string | null }) {
+  const utils = trpc.useUtils();
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  const { data: reviews, isLoading } = trpc.review.list.useQuery({ mountainId });
+  const { data: myReview } = trpc.review.myReview.useQuery(
+    { mountainId },
+    { enabled: !!accessToken }
+  );
+
+  const deleteMutation = trpc.review.delete.useMutation({
+    onSuccess: () => {
+      utils.review.list.invalidate({ mountainId });
+      utils.review.myReview.invalidate({ mountainId });
+      utils.mountain.get.invalidate({ id: mountainId });
+    },
+  });
+
+  const avgRating =
+    reviews && reviews.length > 0
+      ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
+      : null;
+
+  return (
+    <Paper sx={{ p: 3, borderRadius: 3, mt: 3 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Typography variant="h6" fontWeight={700}>
+            Reviews
+          </Typography>
+          {avgRating !== null && (
+            <Stack direction="row" spacing={0.5} alignItems="center">
+              <Rating value={avgRating} precision={0.5} readOnly size="small" />
+              <Typography variant="body2" color="text.secondary">
+                {avgRating.toFixed(1)} ({reviews!.length})
+              </Typography>
+            </Stack>
+          )}
+        </Box>
+        {accessToken && !myReview && (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RateReviewIcon />}
+            onClick={() => setReviewOpen(true)}
+            sx={{ borderRadius: 2 }}
+          >
+            Write a Review
+          </Button>
+        )}
+      </Box>
+
+      {/* My review pinned at top */}
+      {myReview && (
+        <Box
+          sx={{ p: 2, mb: 2, borderRadius: 2, bgcolor: "primary.50", border: "1px solid", borderColor: "primary.200" }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <Box>
+              <Typography variant="caption" color="primary" fontWeight={700}>
+                Your Review
+              </Typography>
+              <Rating value={myReview.rating} readOnly size="small" sx={{ mt: 0.5 }} />
+              {myReview.title && (
+                <Typography fontWeight={600} mt={0.5}>{myReview.title}</Typography>
+              )}
+              <Typography variant="body2" color="text.secondary" mt={0.5}>
+                {myReview.body}
+              </Typography>
+              <Typography variant="caption" color="text.disabled" mt={0.5} display="block">
+                {fmtDate(myReview.createdAt)}
+              </Typography>
+            </Box>
+            <Stack direction="row" spacing={0.5}>
+              <IconButton size="small" onClick={() => setReviewOpen(true)}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => deleteMutation.mutate({ id: myReview.id })}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Stack>
+          </Box>
+        </Box>
+      )}
+
+      {/* Other reviews */}
+      {isLoading ? (
+        Array.from({ length: 2 }).map((_, i) => (
+          <Skeleton key={i} variant="rounded" height={80} sx={{ mb: 1.5, borderRadius: 2 }} />
+        ))
+      ) : (
+        <Stack divider={<Divider />} spacing={0}>
+          {reviews
+            ?.filter((r) => r.userId !== myReview?.userId)
+            .map((review) => (
+              <Box key={review.id} sx={{ py: 2 }}>
+                <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
+                  <Avatar sx={{ width: 32, height: 32, fontSize: 12, bgcolor: "primary.light" }}>
+                    {initials(review.user.name, review.user.email)}
+                  </Avatar>
+                  <Box sx={{ flex: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                      <Typography variant="body2" fontWeight={600}>
+                        {review.user.name ?? review.user.email.split("@")[0]}
+                      </Typography>
+                      <Rating value={review.rating} readOnly size="small" />
+                      <Typography variant="caption" color="text.disabled">
+                        {fmtDate(review.createdAt)}
+                      </Typography>
+                    </Box>
+                    {review.title && (
+                      <Typography variant="body2" fontWeight={600} mt={0.5}>{review.title}</Typography>
+                    )}
+                    <Typography variant="body2" color="text.secondary" mt={0.25}>
+                      {review.body}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            ))}
+        </Stack>
+      )}
+
+      {!isLoading && reviews?.length === 0 && !myReview && (
+        <Typography color="text.secondary" variant="body2" textAlign="center" py={2}>
+          No reviews yet.{accessToken ? " Be the first!" : ""}
+        </Typography>
+      )}
+
+      {!accessToken && (
+        <Box sx={{ mt: 2, textAlign: "center" }}>
+          <Button component={NextLink} href="/login" variant="text" size="small" startIcon={<RateReviewIcon />}>
+            Sign in to write a review
+          </Button>
+        </Box>
+      )}
+
+      <ReviewDialog
+        open={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        mountainId={mountainId}
+        existing={myReview}
+      />
+    </Paper>
   );
 }
 
@@ -232,8 +507,6 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
                 <Typography variant="h4" fontWeight={800} sx={{ opacity: 0.95 }}>
                   {mountain!.altitude.toLocaleString()} ft
                 </Typography>
-
-                {/* Logged badge */}
                 {myCompletion && (
                   <Chip
                     icon={<EmojiEventsIcon />}
@@ -243,7 +516,6 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
                 )}
               </Stack>
 
-              {/* Action buttons */}
               {accessToken && (
                 <Stack direction="row" spacing={1.5} mt={3}>
                   <Button
@@ -306,7 +578,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
         </Stack>
 
         <Grid container spacing={3}>
-          {/* Description */}
+          {/* Main column */}
           <Grid size={{ xs: 12, md: 8 }}>
             <Paper sx={{ p: 3, borderRadius: 3 }}>
               <Typography variant="h6" fontWeight={700} gutterBottom>About</Typography>
@@ -325,7 +597,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
 
             {/* Trails */}
             {!isLoading && mountain!.trails.length > 0 && (
-              <Paper sx={{ p: 3, borderRadius: 3 }}>
+              <Paper sx={{ p: 3, borderRadius: 3, mt: 3 }}>
                 <Typography variant="h6" fontWeight={700} gutterBottom>
                   Routes ({mountain!.trails.length})
                 </Typography>
@@ -358,20 +630,28 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
               </Paper>
             )}
 
-            {/* My latest summit note */}
+            {/* My private summit note */}
             {myCompletion?.notes && (
               <Paper sx={{ p: 3, borderRadius: 3, mt: 3, borderLeft: 4, borderColor: "primary.main" }}>
-                <Typography variant="subtitle2" fontWeight={700} color="primary" gutterBottom>
-                  Your Summit Note
-                </Typography>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
+                  <Typography variant="subtitle2" fontWeight={700} color="primary">
+                    🔒 Your Private Notes
+                  </Typography>
+                  <Typography variant="caption" color="text.disabled">
+                    Only visible to you
+                  </Typography>
+                </Box>
                 <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
                   {myCompletion.notes}
                 </Typography>
                 <Typography variant="caption" color="text.disabled" display="block" mt={1}>
-                  Summited {new Date(myCompletion.completedAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                  Summited {fmtDate(myCompletion.completedAt)}
                 </Typography>
               </Paper>
             )}
+
+            {/* Reviews */}
+            <ReviewsSection mountainId={id} accessToken={accessToken} />
           </Grid>
 
           {/* Sidebar */}
@@ -410,7 +690,12 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
                       variant="outlined"
                       size="small"
                     />
-                    <Chip label={`${mountain!._count.reviews} reviews`} variant="outlined" size="small" />
+                    <Chip
+                      icon={<StarIcon fontSize="small" />}
+                      label={`${mountain!._count.reviews} reviews`}
+                      variant="outlined"
+                      size="small"
+                    />
                     <Chip label={`${mountain!._count.favorites} saves`} variant="outlined" size="small" />
                   </Box>
                 </Stack>

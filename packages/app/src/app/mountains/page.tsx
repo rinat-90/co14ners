@@ -98,6 +98,7 @@ export default function MountainsPage() {
             value={range}
             onChange={(e) => setRange(e.target.value as RangeFilter | "")}
             sx={{ flex: 1 }}
+            slotProps={{ select: { displayEmpty: true } }}
           >
             {RANGES.map((r) => (
               <MenuItem key={r.value} value={r.value}>
@@ -110,6 +111,7 @@ export default function MountainsPage() {
             value={difficulty}
             onChange={(e) => setDifficulty(e.target.value as DifficultyFilter | "")}
             sx={{ flex: 1 }}
+            slotProps={{ select: { displayEmpty: true } }}
           >
             {DIFFICULTIES.map((d) => (
               <MenuItem key={d.value} value={d.value}>
