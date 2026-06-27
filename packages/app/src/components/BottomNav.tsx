@@ -6,28 +6,30 @@ import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import Paper from "@mui/material/Paper";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import HomeIcon from "@mui/icons-material/Home";
+import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import { useAuth } from "@/lib/auth-context";
 
-const NAV_ITEMS = [
+const BASE_ITEMS = [
   { label: "Home", icon: <HomeIcon />, href: "/" },
   { label: "14ers", icon: <TerrainIcon />, href: "/mountains" },
   { label: "Profile", icon: <AccountCircleIcon />, href: "/profile" },
 ];
+
+const SETTINGS_ITEM = { label: "Settings", icon: <SettingsIcon />, href: "/settings" };
+
+const HIDDEN_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/settings"];
 
 export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { accessToken } = useAuth();
 
-  // Hide on auth pages
-  if (pathname.startsWith("/login") || pathname.startsWith("/register") ||
-      pathname.startsWith("/forgot-password") || pathname.startsWith("/reset-password") ||
-      pathname.startsWith("/settings")) {
-    return null;
-  }
+  if (HIDDEN_PATHS.some((p) => pathname.startsWith(p))) return null;
 
-  const current = NAV_ITEMS.findIndex((item) =>
+  const items = accessToken ? [...BASE_ITEMS, SETTINGS_ITEM] : BASE_ITEMS;
+
+  const current = items.findIndex((item) =>
     item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
   );
 
@@ -48,7 +50,7 @@ export default function BottomNav() {
       <BottomNavigation
         value={current}
         onChange={(_, idx) => {
-          const item = NAV_ITEMS[idx];
+          const item = items[idx];
           if (item.href === "/profile" && !accessToken) {
             router.push("/login?redirect=/profile");
           } else {
@@ -57,7 +59,7 @@ export default function BottomNav() {
         }}
         sx={{ height: 64 }}
       >
-        {NAV_ITEMS.map((item) => (
+        {items.map((item) => (
           <BottomNavigationAction
             key={item.href}
             label={item.label}
