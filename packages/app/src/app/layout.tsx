@@ -5,7 +5,7 @@ import { Providers } from "@/lib/providers";
 export const metadata: Metadata = {
   title: "co14ners",
   description: "Track your Colorado 14er summits",
-  manifest: "/manifest.webmanifest",
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
