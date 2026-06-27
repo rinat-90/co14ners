@@ -7,6 +7,8 @@ import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { trpc } from "./trpc";
 import { theme } from "./theme";
+import Box from "@mui/material/Box";
+import BottomNav from "@/components/BottomNav";
 import { AuthProvider, useAuth } from "./auth-context";
 
 /** Runs inside tRPC + Auth providers — fetches fresh user data and handles token refresh */
@@ -68,7 +70,8 @@ function TrpcProvider({ children }: { children: React.ReactNode }) {
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
         <UserHydrator />
-        {children}
+        <Box sx={{ pb: { xs: 8, md: 0 } }}>{children}</Box>
+        <BottomNav />
       </QueryClientProvider>
     </trpc.Provider>
   );

@@ -91,7 +91,7 @@ export default function AppHeader() {
         </Box>
 
         <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-          <Button component={NextLink} href="/mountains" color="inherit" sx={{ fontWeight: 600 }}>
+          <Button component={NextLink} href="/mountains" color="inherit" sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}>
             14ers
           </Button>
           {accessToken ? (
@@ -101,7 +101,7 @@ export default function AppHeader() {
                 href="/profile"
                 color="inherit"
                 startIcon={<AccountCircleIcon />}
-                sx={{ fontWeight: 600 }}
+                sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
               >
                 Profile
               </Button>
