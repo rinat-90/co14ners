@@ -56,7 +56,7 @@ export default function AppHeader() {
   const showBanner = !!installPrompt && !dismissed;
 
   return (
-    <AppBar position="sticky" top={0} color="inherit" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
+    <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: "1px solid", borderColor: "divider" }}>
       <Toolbar sx={{ maxWidth: 1200, width: "100%", mx: "auto", px: { xs: 2, md: 4 } }}>
         <Box
           component={NextLink}
