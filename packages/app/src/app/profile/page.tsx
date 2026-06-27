@@ -74,25 +74,20 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 interface EditDialogProps {
   open: boolean;
   onClose: () => void;
-  completion: { id: string; completedAt: Date | string; notes: string | null; isPrivate: boolean } | null;
+  completion: { id: string; completedAt: Date | string } | null;
 }
 
 function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
   const utils = trpc.useUtils();
   const [date, setDate] = useState("");
-  const [notes, setNotes] = useState("");
-  const [isPrivate, setIsPrivate] = useState(false);
 
   const updateMutation = trpc.user.updateCompletion.useMutation({
     onSuccess: () => { utils.user.completions.invalidate(); onClose(); },
   });
 
-  // Sync state when dialog opens
   const handleOpen = () => {
     if (!completion) return;
     setDate(new Date(completion.completedAt).toISOString().slice(0, 10));
-    setNotes(completion.notes ?? "");
-    setIsPrivate(completion.isPrivate);
   };
 
   return (
@@ -100,48 +95,36 @@ function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
       open={open}
       onClose={onClose}
       TransitionProps={{ onEnter: handleOpen }}
-      maxWidth="sm"
+      maxWidth="xs"
       fullWidth
       PaperProps={{ sx: { borderRadius: 3 } }}
     >
-      <DialogTitle fontWeight={700}>Edit Summit Log</DialogTitle>
+      <DialogTitle fontWeight={700}>Edit Summit Date</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <TextField
-            label="Date"
+            label="Summit date"
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             fullWidth
             slotProps={{ inputLabel: { shrink: true } }}
           />
-          <TextField
-            label="Notes"
-            multiline
-            rows={4}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Trail conditions, highlights, who you went with…"
-            fullWidth
-          />
-          <FormControlLabel
-            control={<Switch checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />}
-            label="Private (only visible to you)"
-          />
+          <Typography variant="caption" color="text.secondary">
+            To edit your review, visit the mountain page.
+          </Typography>
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose}>Cancel</Button>
         <Button
           variant="contained"
-          disabled={updateMutation.isPending}
+          disabled={!date || updateMutation.isPending}
           onClick={() =>
             completion &&
             updateMutation.mutate({
               id: completion.id,
               completedAt: date ? new Date(date).toISOString() : undefined,
-              notes: notes || null,
-              isPrivate,
             })
           }
         >

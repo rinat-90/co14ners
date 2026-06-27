@@ -13,7 +13,7 @@ import NextLink from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 
-export function LoginForm() {
+export function LoginForm({ redirect }: { redirect?: string }) {
   const router = useRouter();
   const { setTokens } = useAuth();
   const [email, setEmail] = useState("");
@@ -23,7 +23,7 @@ export function LoginForm() {
   const login = trpc.auth.login.useMutation({
     onSuccess(data) {
       setTokens(data.accessToken, data.refreshToken);
-      router.push("/");
+      router.push(redirect ?? "/");
     },
     onError(err) {
       setError(err.message);

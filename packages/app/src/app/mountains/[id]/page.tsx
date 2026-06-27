@@ -17,7 +17,6 @@ import Paper from "@mui/material/Paper";
 import Rating from "@mui/material/Rating";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -28,9 +27,9 @@ import BookmarkAddedIcon from "@mui/icons-material/BookmarkAdded";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import LockIcon from "@mui/icons-material/Lock";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
 import NaturePeopleIcon from "@mui/icons-material/NaturePeople";
-import RateReviewIcon from "@mui/icons-material/RateReview";
 import RouteIcon from "@mui/icons-material/Route";
 import StarIcon from "@mui/icons-material/Star";
 import TerrainIcon from "@mui/icons-material/Terrain";
@@ -64,100 +63,166 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
   );
 }
 
-// ── Log Summit dialog ──────────────────────────────────────────────────────────
+// ── Log Summit dialog (records completion + public review) ─────────────────────
 
 function LogSummitDialog({
   open,
   onClose,
   mountainId,
+  mountainName,
   trails,
+  hasExistingReview,
 }: {
   open: boolean;
   onClose: () => void;
   mountainId: string;
+  mountainName: string;
   trails: { id: string; name: string }[];
+  hasExistingReview: boolean;
 }) {
   const utils = trpc.useUtils();
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
-  const [notes, setNotes] = useState("");
   const [trailId, setTrailId] = useState("");
-  const [isPrivate, setIsPrivate] = useState(true);
+  const [rating, setRating] = useState<number | null>(null);
+  const [reviewTitle, setReviewTitle] = useState("");
+  const [reviewBody, setReviewBody] = useState("");
 
-  const logMutation = trpc.user.logSummit.useMutation({
-    onSuccess: () => {
-      utils.user.stats.invalidate();
-      utils.user.completions.invalidate();
-      utils.user.myCompletion.invalidate({ mountainId });
-      utils.mountain.get.invalidate({ id: mountainId });
-      setDate(today);
-      setNotes("");
-      setTrailId("");
-      onClose();
-    },
-  });
+  const reset = () => {
+    setDate(today);
+    setTrailId("");
+    setRating(null);
+    setReviewTitle("");
+    setReviewBody("");
+  };
+
+  const invalidate = () => {
+    utils.user.stats.invalidate();
+    utils.user.completions.invalidate();
+    utils.user.myCompletion.invalidate({ mountainId });
+    utils.mountain.get.invalidate({ id: mountainId });
+    utils.mountain.globalStats.invalidate();
+    utils.review.list.invalidate({ mountainId });
+    utils.review.myReview.invalidate({ mountainId });
+    reset();
+    onClose();
+  };
+
+  const logMutation = trpc.user.logSummit.useMutation();
+  const reviewMutation = trpc.review.add.useMutation({ onSuccess: invalidate });
+  const logOnlyMutation = trpc.user.logSummit.useMutation({ onSuccess: invalidate });
+
+  const isPending = logMutation.isPending || reviewMutation.isPending || logOnlyMutation.isPending;
+  const canSubmit = !!date && (hasExistingReview || (!!rating && reviewBody.trim().length > 0));
+
+  const handleSubmit = () => {
+    if (hasExistingReview) {
+      logOnlyMutation.mutate({
+        mountainId,
+        completedAt: new Date(date).toISOString(),
+        trailId: trailId || undefined,
+        isPrivate: false,
+      });
+    } else {
+      logMutation.mutate(
+        {
+          mountainId,
+          completedAt: new Date(date).toISOString(),
+          trailId: trailId || undefined,
+          isPrivate: false,
+        },
+        {
+          onSuccess: () => {
+            reviewMutation.mutate({
+              mountainId,
+              rating: rating!,
+              title: reviewTitle || undefined,
+              body: reviewBody,
+              hikedAt: new Date(date).toISOString(),
+            });
+          },
+        }
+      );
+    }
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-      <DialogTitle fontWeight={700}>Log Summit</DialogTitle>
+      <DialogTitle fontWeight={700}>Log Summit — {mountainName}</DialogTitle>
       <DialogContent>
-        <Stack spacing={2} sx={{ mt: 1 }}>
-          <TextField
-            label="Summit date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            fullWidth
-            slotProps={{ inputLabel: { shrink: true } }}
-          />
-          {trails.length > 0 && (
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
+          <Stack direction="row" spacing={2}>
             <TextField
-              label="Route (optional)"
-              select
-              value={trailId}
-              onChange={(e) => setTrailId(e.target.value)}
+              label="Summit date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
               fullWidth
-              slotProps={{ select: { native: true } }}
-            >
-              <option value="">No specific route</option>
-              {trails.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </TextField>
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+            {trails.length > 0 && (
+              <TextField
+                label="Route (optional)"
+                select
+                value={trailId}
+                onChange={(e) => setTrailId(e.target.value)}
+                fullWidth
+                slotProps={{ select: { native: true } }}
+              >
+                <option value="">Any route</option>
+                {trails.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </TextField>
+            )}
+          </Stack>
+
+          {!hasExistingReview && (
+            <>
+              <Divider>
+                <Typography variant="caption" color="text.secondary">Public Review</Typography>
+              </Divider>
+              <Box>
+                <Typography variant="body2" fontWeight={600} gutterBottom>
+                  Your rating *
+                </Typography>
+                <Rating
+                  value={rating}
+                  onChange={(_, v) => setRating(v)}
+                  size="large"
+                  emptyIcon={<StarIcon fontSize="inherit" />}
+                />
+              </Box>
+              <TextField
+                label="Title (optional)"
+                value={reviewTitle}
+                onChange={(e) => setReviewTitle(e.target.value)}
+                placeholder="Summarize your experience"
+                fullWidth
+              />
+              <TextField
+                label="Review *"
+                multiline
+                rows={4}
+                value={reviewBody}
+                onChange={(e) => setReviewBody(e.target.value)}
+                placeholder="How was the trail? Weather? Tips for others?"
+                fullWidth
+              />
+            </>
           )}
-          <TextField
-            label="Private notes"
-            multiline
-            rows={4}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Trail conditions, how you felt, who you went with… (only visible to you)"
-            fullWidth
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            🔒 Notes are always private. Want to share your experience?{" "}
-            <Box component="span" sx={{ color: "primary.main", cursor: "pointer" }} onClick={onClose}>
-              Write a public review instead.
-            </Box>
-          </Typography>
+
+          {hasExistingReview && (
+            <Typography variant="body2" color="text.secondary">
+              You&apos;ve already reviewed this peak. This will log another summit entry.
+            </Typography>
+          )}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose}>Cancel</Button>
-        <Button
-          variant="contained"
-          disabled={!date || logMutation.isPending}
-          onClick={() =>
-            logMutation.mutate({
-              mountainId,
-              completedAt: new Date(date).toISOString(),
-              notes: notes || undefined,
-              trailId: trailId || undefined,
-              isPrivate,
-            })
-          }
-        >
-          {logMutation.isPending ? "Saving…" : "Log Summit"}
+        <Button variant="contained" disabled={!canSubmit || isPending} onClick={handleSubmit}>
+          {isPending ? "Saving…" : "Log Summit"}
         </Button>
       </DialogActions>
     </Dialog>
@@ -175,12 +240,12 @@ function ReviewDialog({
   open: boolean;
   onClose: () => void;
   mountainId: string;
-  existing?: { id: string; rating: number; title: string | null; body: string; hikedAt: Date | string | null } | null;
+  existing: { id: string; rating: number; title: string | null; body: string; hikedAt: Date | string | null };
 }) {
   const utils = trpc.useUtils();
-  const [rating, setRating] = useState(existing?.rating ?? 0);
-  const [title, setTitle] = useState(existing?.title ?? "");
-  const [body, setBody] = useState(existing?.body ?? "");
+  const [rating, setRating] = useState(existing.rating);
+  const [title, setTitle] = useState(existing.title ?? "");
+  const [body, setBody] = useState(existing.body);
 
   const invalidate = () => {
     utils.review.list.invalidate({ mountainId });
@@ -189,24 +254,19 @@ function ReviewDialog({
     onClose();
   };
 
-  const addMutation = trpc.review.add.useMutation({ onSuccess: invalidate });
   const updateMutation = trpc.review.update.useMutation({ onSuccess: invalidate });
 
-  const isPending = addMutation.isPending || updateMutation.isPending;
-  const error = addMutation.error?.message || updateMutation.error?.message;
+  const isPending = updateMutation.isPending;
+  const error = updateMutation.error?.message;
 
   const handleOpen = () => {
-    setRating(existing?.rating ?? 0);
-    setTitle(existing?.title ?? "");
-    setBody(existing?.body ?? "");
+    setRating(existing.rating);
+    setTitle(existing.title ?? "");
+    setBody(existing.body);
   };
 
   const handleSubmit = () => {
-    if (existing) {
-      updateMutation.mutate({ id: existing.id, rating, title: title || null, body });
-    } else {
-      addMutation.mutate({ mountainId, rating, title: title || undefined, body });
-    }
+    updateMutation.mutate({ id: existing.id, rating, title: title || null, body });
   };
 
   return (
@@ -218,7 +278,7 @@ function ReviewDialog({
       fullWidth
       PaperProps={{ sx: { borderRadius: 3 } }}
     >
-      <DialogTitle fontWeight={700}>{existing ? "Edit Review" : "Write a Review"}</DialogTitle>
+      <DialogTitle fontWeight={700}>Edit Review</DialogTitle>
       <DialogContent>
         <Stack spacing={2.5} sx={{ mt: 1 }}>
           <Box>
@@ -260,7 +320,7 @@ function ReviewDialog({
           disabled={!rating || !body.trim() || isPending}
           onClick={handleSubmit}
         >
-          {isPending ? "Saving…" : existing ? "Update Review" : "Post Review"}
+          {isPending ? "Saving…" : "Update Review"}
         </Button>
       </DialogActions>
     </Dialog>
@@ -308,17 +368,6 @@ function ReviewsSection({ mountainId, accessToken }: { mountainId: string; acces
             </Stack>
           )}
         </Box>
-        {accessToken && !myReview && (
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<RateReviewIcon />}
-            onClick={() => setReviewOpen(true)}
-            sx={{ borderRadius: 2 }}
-          >
-            Write a Review
-          </Button>
-        )}
       </Box>
 
       {/* My review pinned at top */}
@@ -398,24 +447,103 @@ function ReviewsSection({ mountainId, accessToken }: { mountainId: string; acces
 
       {!isLoading && reviews?.length === 0 && !myReview && (
         <Typography color="text.secondary" variant="body2" textAlign="center" py={2}>
-          No reviews yet.{accessToken ? " Be the first!" : ""}
+          No reviews yet. Log a summit to leave a review.
         </Typography>
       )}
 
-      {!accessToken && (
-        <Box sx={{ mt: 2, textAlign: "center" }}>
-          <Button component={NextLink} href="/login" variant="text" size="small" startIcon={<RateReviewIcon />}>
-            Sign in to write a review
-          </Button>
-        </Box>
+      {myReview && (
+        <ReviewDialog
+          open={reviewOpen}
+          onClose={() => setReviewOpen(false)}
+          mountainId={mountainId}
+          existing={myReview}
+        />
       )}
+    </Paper>
+  );
+}
 
-      <ReviewDialog
-        open={reviewOpen}
-        onClose={() => setReviewOpen(false)}
-        mountainId={mountainId}
-        existing={myReview}
-      />
+// ── Private note ───────────────────────────────────────────────────────────────
+
+function PrivateNoteSection({
+  completionId,
+  notes,
+  mountainId,
+}: {
+  completionId: string;
+  notes: string | null;
+  mountainId: string;
+}) {
+  const utils = trpc.useUtils();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(notes ?? "");
+
+  const updateMutation = trpc.user.updateCompletion.useMutation({
+    onSuccess: () => {
+      utils.user.myCompletion.invalidate({ mountainId });
+      utils.user.completions.invalidate();
+      setEditing(false);
+    },
+  });
+
+  return (
+    <Paper sx={{ p: 3, borderRadius: 3, mt: 3, borderLeft: 4, borderColor: "primary.main" }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.5 }}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <LockIcon fontSize="small" color="primary" />
+          <Typography variant="subtitle2" fontWeight={700} color="primary">
+            Private Note
+          </Typography>
+          <Chip label="Only you" size="small" sx={{ fontSize: 10, height: 18 }} />
+        </Stack>
+        {!editing && (
+          <IconButton
+            size="small"
+            onClick={() => { setDraft(notes ?? ""); setEditing(true); }}
+          >
+            <EditIcon fontSize="small" />
+          </IconButton>
+        )}
+      </Box>
+
+      {editing ? (
+        <Stack spacing={1.5}>
+          <TextField
+            multiline
+            rows={4}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Your private thoughts on this summit…"
+            fullWidth
+            size="small"
+          />
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Button size="small" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button
+              size="small"
+              variant="contained"
+              disabled={updateMutation.isPending}
+              onClick={() => updateMutation.mutate({ id: completionId, notes: draft || null })}
+            >
+              {updateMutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </Stack>
+        </Stack>
+      ) : notes ? (
+        <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
+          {notes}
+        </Typography>
+      ) : (
+        <Typography
+          variant="body2"
+          color="text.disabled"
+          fontStyle="italic"
+          sx={{ cursor: "pointer" }}
+          onClick={() => setEditing(true)}
+        >
+          Add a private note for this summit…
+        </Typography>
+      )}
     </Paper>
   );
 }
@@ -435,6 +563,10 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
     { enabled: !!accessToken }
   );
   const { data: myCompletion } = trpc.user.myCompletion.useQuery(
+    { mountainId: id },
+    { enabled: !!accessToken }
+  );
+  const { data: myReview } = trpc.review.myReview.useQuery(
     { mountainId: id },
     { enabled: !!accessToken }
   );
@@ -629,25 +761,13 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
                 </Stack>
               </Paper>
             )}
-
-            {/* My private summit note */}
-            {myCompletion?.notes && (
-              <Paper sx={{ p: 3, borderRadius: 3, mt: 3, borderLeft: 4, borderColor: "primary.main" }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                  <Typography variant="subtitle2" fontWeight={700} color="primary">
-                    🔒 Your Private Notes
-                  </Typography>
-                  <Typography variant="caption" color="text.disabled">
-                    Only visible to you
-                  </Typography>
-                </Box>
-                <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: "pre-wrap" }}>
-                  {myCompletion.notes}
-                </Typography>
-                <Typography variant="caption" color="text.disabled" display="block" mt={1}>
-                  Summited {fmtDate(myCompletion.completedAt)}
-                </Typography>
-              </Paper>
+            {/* Private note — only when logged in and has a summit */}
+            {accessToken && myCompletion && (
+              <PrivateNoteSection
+                completionId={myCompletion.id}
+                notes={myCompletion.notes}
+                mountainId={id}
+              />
             )}
 
             {/* Reviews */}
@@ -721,7 +841,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
                     fullWidth
                     variant="contained"
                     component={NextLink}
-                    href="/login"
+                    href={`/login?redirect=/mountains/${id}`}
                     startIcon={<EmojiEventsIcon />}
                     sx={{ mt: 1.5, borderRadius: 3 }}
                   >
@@ -741,7 +861,9 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
           open={logOpen}
           onClose={() => setLogOpen(false)}
           mountainId={id}
+          mountainName={mountain.name}
           trails={mountain.trails.map((t) => ({ id: t.id, name: t.name }))}
+          hasExistingReview={!!myReview}
         />
       )}
     </Box>
