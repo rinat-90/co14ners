@@ -22,13 +22,24 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUserState] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Restore both token and cached user on mount for instant hydration
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
+    const storedUser = localStorage.getItem("user");
     if (token) setAccessToken(token);
+    if (storedUser) {
+      try { setUserState(JSON.parse(storedUser)); } catch { /* ignore */ }
+    }
     setIsLoading(false);
+  }, []);
+
+  const setUser = useCallback((u: AuthUser | null) => {
+    setUserState(u);
+    if (u) localStorage.setItem("user", JSON.stringify(u));
+    else localStorage.removeItem("user");
   }, []);
 
   const setTokens = useCallback((at: string, rt: string) => {
@@ -40,8 +51,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
+    localStorage.removeItem("user");
     setAccessToken(null);
-    setUser(null);
+    setUserState(null);
   }, []);
 
   return (

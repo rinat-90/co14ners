@@ -1,13 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { trpc } from "./trpc";
 import { theme } from "./theme";
-import { AuthProvider } from "./auth-context";
+import { AuthProvider, useAuth } from "./auth-context";
+
+/** Runs inside tRPC + Auth providers — fetches fresh user data on load */
+function UserHydrator() {
+  const { accessToken, setUser } = useAuth();
+  const { data } = trpc.user.me.useQuery(undefined, {
+    enabled: !!accessToken,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (data) setUser(data);
+  }, [data, setUser]);
+
+  return null;
+}
 
 function TrpcProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -28,7 +44,10 @@ function TrpcProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <UserHydrator />
+        {children}
+      </QueryClientProvider>
     </trpc.Provider>
   );
 }
