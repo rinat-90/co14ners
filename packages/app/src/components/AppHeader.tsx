@@ -5,15 +5,27 @@ import NextLink from "next/link";
 import AppBar from "@mui/material/AppBar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import CloseIcon from "@mui/icons-material/Close";
 import GetAppIcon from "@mui/icons-material/GetApp";
 import IosShareIcon from "@mui/icons-material/IosShare";
+import LogoutIcon from "@mui/icons-material/Logout";
+import PersonIcon from "@mui/icons-material/Person";
+import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import { useAuth } from "@/lib/auth-context";
+
+function displayName(user: { name?: string | null; email: string } | null) {
+  if (!user) return "Account";
+  return user.name ?? user.email.split("@")[0];
+}
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -28,18 +40,17 @@ function isIosSafari() {
 }
 
 export default function AppHeader() {
-  const { accessToken, logout } = useAuth();
+  const { accessToken, user, logout } = useAuth();
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosBanner, setShowIosBanner] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   useEffect(() => {
-    // Already installed as standalone — don't show
     const isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (navigator as Navigator & { standalone?: boolean }).standalone === true;
     if (isStandalone) return;
-
     if (sessionStorage.getItem("pwa-install-dismissed")) return;
 
     if (isIosSafari()) {
@@ -91,23 +102,58 @@ export default function AppHeader() {
         </Box>
 
         <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-          <Button component={NextLink} href="/mountains" color="inherit" sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}>
+          <Button
+            component={NextLink}
+            href="/mountains"
+            color="inherit"
+            sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
+          >
             14ers
           </Button>
+
           {accessToken ? (
             <>
               <Button
-                component={NextLink}
-                href="/profile"
-                color="inherit"
                 startIcon={<AccountCircleIcon />}
+                onClick={(e) => setMenuAnchor(e.currentTarget)}
+                color="inherit"
                 sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
               >
-                Profile
+                {displayName(user)}
               </Button>
-              <Button variant="outlined" size="small" onClick={logout}>
-                Sign out
-              </Button>
+              <Menu
+                anchorEl={menuAnchor}
+                open={!!menuAnchor}
+                onClose={() => setMenuAnchor(null)}
+                transformOrigin={{ horizontal: "right", vertical: "top" }}
+                anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+                slotProps={{ paper: { sx: { mt: 1, minWidth: 180, borderRadius: 2 } } }}
+              >
+                <MenuItem
+                  component={NextLink}
+                  href="/profile"
+                  onClick={() => setMenuAnchor(null)}
+                >
+                  <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
+                  Profile
+                </MenuItem>
+                <MenuItem
+                  component={NextLink}
+                  href="/settings"
+                  onClick={() => setMenuAnchor(null)}
+                >
+                  <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
+                  Settings
+                </MenuItem>
+                <Divider />
+                <MenuItem
+                  onClick={() => { setMenuAnchor(null); logout(); }}
+                  sx={{ color: "error.main" }}
+                >
+                  <ListItemIcon><LogoutIcon fontSize="small" color="error" /></ListItemIcon>
+                  Sign out
+                </MenuItem>
+              </Menu>
             </>
           ) : (
             <Button variant="contained" size="small" component={NextLink} href="/login">

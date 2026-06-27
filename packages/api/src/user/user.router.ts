@@ -6,6 +6,8 @@ import {
   updateCompletionSchema,
   deleteCompletionSchema,
   favoriteSchema,
+  updateEmailSchema,
+  updatePasswordSchema,
 } from "./user.schema.js";
 
 export const userRouter = router({
@@ -44,4 +46,12 @@ export const userRouter = router({
   myCompletion: protectedProcedure
     .input(z.object({ mountainId: z.string() }))
     .query(({ ctx, input }) => userService.myCompletion(ctx.user.id, input.mountainId)),
+
+  updateEmail: protectedProcedure
+    .input(updateEmailSchema)
+    .mutation(({ ctx, input }) => userService.updateEmail(ctx.user.id, input.newEmail, input.currentPassword)),
+
+  updatePassword: protectedProcedure
+    .input(updatePasswordSchema)
+    .mutation(({ ctx, input }) => userService.updatePassword(ctx.user.id, input.currentPassword, input.newPassword)),
 });

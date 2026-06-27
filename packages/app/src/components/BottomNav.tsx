@@ -22,7 +22,8 @@ export default function BottomNav() {
 
   // Hide on auth pages
   if (pathname.startsWith("/login") || pathname.startsWith("/register") ||
-      pathname.startsWith("/forgot-password") || pathname.startsWith("/reset-password")) {
+      pathname.startsWith("/forgot-password") || pathname.startsWith("/reset-password") ||
+      pathname.startsWith("/settings")) {
     return null;
   }
 

@@ -22,3 +22,13 @@ export const deleteCompletionSchema = z.object({
 export const favoriteSchema = z.object({
   mountainId: z.string(),
 });
+
+export const updateEmailSchema = z.object({
+  newEmail: z.string().email(),
+  currentPassword: z.string().min(1),
+});
+
+export const updatePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
+});

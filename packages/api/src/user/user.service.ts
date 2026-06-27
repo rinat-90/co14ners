@@ -1,3 +1,5 @@
+import bcrypt from "bcryptjs";
+import { TRPCError } from "@trpc/server";
 import { prisma } from "../lib/prisma.js";
 
 export const userService = {
@@ -129,5 +131,26 @@ export const userService = {
       where: { userId, mountainId },
       orderBy: { completedAt: "desc" },
     });
+  },
+
+  async updateEmail(userId: string, newEmail: string, currentPassword: string) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Incorrect password" });
+
+    const taken = await prisma.user.findUnique({ where: { email: newEmail } });
+    if (taken) throw new TRPCError({ code: "CONFLICT", message: "Email already in use" });
+
+    return prisma.user.update({ where: { id: userId }, data: { email: newEmail } });
+  },
+
+  async updatePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) throw new TRPCError({ code: "UNAUTHORIZED", message: "Incorrect current password" });
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    return { success: true };
   },
 };
