@@ -39,6 +39,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 # standalone output mirrors the monorepo directory structure
 COPY --from=builder --chown=nextjs:nodejs /app/packages/app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/packages/app/.next/static ./packages/app/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/packages/app/public ./packages/app/public
 
 USER nextjs
 EXPOSE 3000
