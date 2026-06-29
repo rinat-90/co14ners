@@ -27,7 +27,9 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import FavoriteIcon from "@mui/icons-material/Favorite";
+import LogoutIcon from "@mui/icons-material/Logout";
 import MapIcon from "@mui/icons-material/Map";
+import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AppHeader from "@/components/AppHeader";
@@ -139,7 +141,7 @@ function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
 // ── Profile page ───────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const { accessToken } = useAuth();
+  const { accessToken, logout } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState(0);
   const [editTarget, setEditTarget] = useState<Parameters<typeof EditCompletionDialog>[0]["completion"]>(null);
@@ -187,7 +189,7 @@ export default function ProfilePage() {
               {initials(me?.name ?? null, me?.email ?? "")}
             </Avatar>
           )}
-          <Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
             {isLoading ? (
               <>
                 <Skeleton variant="text" width={200} height={40} sx={{ bgcolor: "rgba(255,255,255,0.2)" }} />
@@ -207,6 +209,40 @@ export default function ProfilePage() {
               </>
             )}
           </Box>
+          {/* Action buttons */}
+          <Stack direction="row" spacing={1} sx={{ alignSelf: { xs: "flex-end", sm: "center" } }}>
+            <Button
+              component={NextLink}
+              href="/settings"
+              size="small"
+              startIcon={<SettingsIcon fontSize="small" />}
+              sx={{
+                color: "rgba(255,255,255,0.85)",
+                borderColor: "rgba(255,255,255,0.3)",
+                border: "1px solid",
+                borderRadius: 2,
+                textTransform: "none",
+                px: 1.5,
+                "&:hover": { bgcolor: "rgba(255,255,255,0.12)", borderColor: "rgba(255,255,255,0.6)" },
+              }}
+            >
+              Settings
+            </Button>
+            <Button
+              size="small"
+              startIcon={<LogoutIcon fontSize="small" />}
+              onClick={() => { logout(); router.push("/"); }}
+              sx={{
+                color: "rgba(255,255,255,0.75)",
+                borderRadius: 2,
+                textTransform: "none",
+                px: 1.5,
+                "&:hover": { bgcolor: "rgba(255,255,255,0.1)", color: "white" },
+              }}
+            >
+              Sign out
+            </Button>
+          </Stack>
         </Box>
       </Box>
 
