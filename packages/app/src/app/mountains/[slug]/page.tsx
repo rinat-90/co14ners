@@ -69,6 +69,7 @@ function LogSummitDialog({
   open,
   onClose,
   mountainId,
+  mountainSlug,
   mountainName,
   trails,
   hasExistingReview,
@@ -76,6 +77,7 @@ function LogSummitDialog({
   open: boolean;
   onClose: () => void;
   mountainId: string;
+  mountainSlug: string;
   mountainName: string;
   trails: { id: string; name: string }[];
   hasExistingReview: boolean;
@@ -100,7 +102,7 @@ function LogSummitDialog({
     utils.user.stats.invalidate();
     utils.user.completions.invalidate();
     utils.user.myCompletion.invalidate({ mountainId });
-    utils.mountain.get.invalidate({ id: mountainId });
+    utils.mountain.getBySlug.invalidate({ slug: mountainSlug });
     utils.mountain.globalStats.invalidate();
     utils.review.list.invalidate({ mountainId });
     utils.review.myReview.invalidate({ mountainId });
@@ -235,11 +237,13 @@ function ReviewDialog({
   open,
   onClose,
   mountainId,
+  mountainSlug,
   existing,
 }: {
   open: boolean;
   onClose: () => void;
   mountainId: string;
+  mountainSlug: string;
   existing: { id: string; rating: number; title: string | null; body: string; hikedAt: Date | string | null };
 }) {
   const utils = trpc.useUtils();
@@ -250,7 +254,7 @@ function ReviewDialog({
   const invalidate = () => {
     utils.review.list.invalidate({ mountainId });
     utils.review.myReview.invalidate({ mountainId });
-    utils.mountain.get.invalidate({ id: mountainId });
+    utils.mountain.getBySlug.invalidate({ slug: mountainSlug });
     onClose();
   };
 
@@ -329,7 +333,7 @@ function ReviewDialog({
 
 // ── Reviews section ────────────────────────────────────────────────────────────
 
-function ReviewsSection({ mountainId, accessToken }: { mountainId: string; accessToken: string | null }) {
+function ReviewsSection({ mountainId, mountainSlug, accessToken }: { mountainId: string; mountainSlug: string; accessToken: string | null }) {
   const utils = trpc.useUtils();
   const [reviewOpen, setReviewOpen] = useState(false);
 
@@ -343,7 +347,7 @@ function ReviewsSection({ mountainId, accessToken }: { mountainId: string; acces
     onSuccess: () => {
       utils.review.list.invalidate({ mountainId });
       utils.review.myReview.invalidate({ mountainId });
-      utils.mountain.get.invalidate({ id: mountainId });
+      utils.mountain.getBySlug.invalidate({ slug: mountainSlug });
     },
   });
 
@@ -456,6 +460,7 @@ function ReviewsSection({ mountainId, accessToken }: { mountainId: string; acces
           open={reviewOpen}
           onClose={() => setReviewOpen(false)}
           mountainId={mountainId}
+          mountainSlug={mountainSlug}
           existing={myReview}
         />
       )}
@@ -550,25 +555,32 @@ function PrivateNoteSection({
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-export default function MountainDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+function toSlug(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+export default function MountainDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const { accessToken } = useAuth();
   const [logOpen, setLogOpen] = useState(false);
 
   const utils = trpc.useUtils();
-  const { data: mountain, isLoading, isError } = trpc.mountain.get.useQuery({ id });
+  const { data: mountain, isLoading, isError } = trpc.mountain.getBySlug.useQuery({ slug });
+
+  // Use the db id (from mountain data) for all user-specific queries
+  const id = mountain?.id ?? "";
 
   const { data: favData } = trpc.user.isFavorite.useQuery(
     { mountainId: id },
-    { enabled: !!accessToken }
+    { enabled: !!accessToken && !!id }
   );
   const { data: myCompletion } = trpc.user.myCompletion.useQuery(
     { mountainId: id },
-    { enabled: !!accessToken }
+    { enabled: !!accessToken && !!id }
   );
   const { data: myReview } = trpc.review.myReview.useQuery(
     { mountainId: id },
-    { enabled: !!accessToken }
+    { enabled: !!accessToken && !!id }
   );
 
   const addFavMutation = trpc.user.addFavorite.useMutation({
@@ -771,7 +783,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
             )}
 
             {/* Reviews */}
-            <ReviewsSection mountainId={id} accessToken={accessToken} />
+            <ReviewsSection mountainId={id} mountainSlug={slug} accessToken={accessToken} />
           </Grid>
 
           {/* Sidebar */}
@@ -841,7 +853,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
                     fullWidth
                     variant="contained"
                     component={NextLink}
-                    href={`/login?redirect=/mountains/${id}`}
+                    href={`/login?redirect=/mountains/${slug}`}
                     startIcon={<EmojiEventsIcon />}
                     sx={{ mt: 1.5, borderRadius: 3 }}
                   >
@@ -861,6 +873,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ id: s
           open={logOpen}
           onClose={() => setLogOpen(false)}
           mountainId={id}
+          mountainSlug={slug}
           mountainName={mountain.name}
           trails={mountain.trails.map((t) => ({ id: t.id, name: t.name }))}
           hasExistingReview={!!myReview}

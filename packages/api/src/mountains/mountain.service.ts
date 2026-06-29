@@ -2,6 +2,15 @@ import { TRPCError } from "@trpc/server";
 import type { Difficulty, MountainRange } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 
+function toSlug(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+const MOUNTAIN_INCLUDE = {
+  trails: { orderBy: { difficulty: "asc" as const } },
+  _count: { select: { reviews: true, completions: true, favorites: true } },
+};
+
 export const mountainService = {
   async list(filters: {
     range?: MountainRange;
@@ -32,16 +41,16 @@ export const mountainService = {
   async getById(id: string) {
     const mountain = await prisma.mountain.findUnique({
       where: { id },
-      include: {
-        trails: { orderBy: { difficulty: "asc" } },
-        _count: { select: { reviews: true, completions: true, favorites: true } },
-      },
+      include: MOUNTAIN_INCLUDE,
     });
+    if (!mountain) throw new TRPCError({ code: "NOT_FOUND", message: "Mountain not found" });
+    return mountain;
+  },
 
-    if (!mountain) {
-      throw new TRPCError({ code: "NOT_FOUND", message: "Mountain not found" });
-    }
-
+  async getBySlug(slug: string) {
+    const mountains = await prisma.mountain.findMany({ include: MOUNTAIN_INCLUDE });
+    const mountain = mountains.find((m) => toSlug(m.name) === slug);
+    if (!mountain) throw new TRPCError({ code: "NOT_FOUND", message: "Mountain not found" });
     return mountain;
   },
 };

@@ -38,6 +38,10 @@ import { trpc } from "@/lib/trpc";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+function toSlug(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
 function initials(name: string | null, email: string) {
   if (name) return name.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
   return email.slice(0, 2).toUpperCase();
@@ -265,7 +269,7 @@ export default function ProfilePage() {
                           <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                             <Typography
                               component={NextLink}
-                              href={`/mountains/${c.mountain.id}`}
+                              href={`/mountains/${toSlug(c.mountain.name)}`}
                               fontWeight={700}
                               sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
                             >
@@ -343,7 +347,7 @@ export default function ProfilePage() {
                     {favorites?.map((f) => (
                       <Grid key={f.id} size={{ xs: 12, sm: 6 }}>
                         <Card variant="outlined" sx={{ borderRadius: 2 }}>
-                          <CardActionArea component={NextLink} href={`/mountains/${f.mountain.id}`} sx={{ p: 2 }}>
+                          <CardActionArea component={NextLink} href={`/mountains/${toSlug(f.mountain.name)}`} sx={{ p: 2 }}>
                             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                               <Box>
                                 <Typography fontWeight={700}>{f.mountain.name}</Typography>

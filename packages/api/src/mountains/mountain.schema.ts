@@ -4,6 +4,10 @@ export const getMountainSchema = z.object({
   id: z.string(),
 });
 
+export const getMountainBySlugSchema = z.object({
+  slug: z.string(),
+});
+
 export const listMountainsSchema = z.object({
   range: z
     .enum([

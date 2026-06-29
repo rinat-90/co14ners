@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import NextLink from "next/link";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -45,14 +45,20 @@ type DifficultyFilter = "CLASS_1" | "CLASS_2" | "CLASS_3" | "CLASS_4" | "CLASS_5
 
 export default function MountainsPage() {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [range, setRange] = useState<RangeFilter | "">("");
   const [difficulty, setDifficulty] = useState<DifficultyFilter | "">("");
 
   const { data: mountains, isLoading } = trpc.mountain.list.useQuery({
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     range: range || undefined,
     difficulty: difficulty || undefined,
   });
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 500);
+    return () => clearTimeout(t);
+  }, [search]);
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
@@ -140,7 +146,7 @@ export default function MountainsPage() {
                   >
                     <CardActionArea
                       component={NextLink}
-                      href={`/mountains/${m.id}`}
+                      href={`/mountains/${m.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`}
                       sx={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "stretch" }}
                     >
                       {/* Elevation accent bar */}
