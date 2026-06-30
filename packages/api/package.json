@@ -14,7 +14,10 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "bun run prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:seed-trails": "bun run prisma/seed-trails.ts",
+    "db:fetch-geometry": "bun run src/scripts/fetch-trail-geometry.ts",
+    "db:seed-gpx": "bun run prisma/seed-gpx-geometry.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",

@@ -12,6 +12,8 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
 import Grid from "@mui/material/Grid";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
 import Rating from "@mui/material/Rating";
@@ -20,6 +22,11 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import InputLabel from "@mui/material/InputLabel";
+import FormControl from "@mui/material/FormControl";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import BookmarkAddIcon from "@mui/icons-material/BookmarkAdd";
@@ -37,6 +44,7 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
 import RangeLabel from "@/components/mountains/RangeLabel";
+import TrailMap from "@/components/mountains/TrailMap";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
@@ -553,6 +561,255 @@ function PrivateNoteSection({
   );
 }
 
+// ── Upload Trail dialog (admin only) ───────────────────────────────────────────
+
+const DIFFICULTY_LABELS: Record<string, string> = {
+  CLASS_1: "Class 1",
+  CLASS_2: "Class 2",
+  CLASS_3: "Class 3",
+  CLASS_4: "Class 4",
+  CLASS_5: "Class 5",
+};
+
+function UploadTrailDialog({
+  open,
+  onClose,
+  mountainId,
+  mountainSlug,
+}: {
+  open: boolean;
+  onClose: () => void;
+  mountainId: string;
+  mountainSlug: string;
+}) {
+  const utils = trpc.useUtils();
+  const [name, setName] = useState("");
+  const [difficulty, setDifficulty] = useState("CLASS_2");
+  const [file, setFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState("");
+
+  const reset = () => {
+    setName("");
+    setDifficulty("CLASS_2");
+    setFile(null);
+    setFileError("");
+  };
+
+  const uploadMutation = trpc.trail.uploadGpx.useMutation({
+    onSuccess: () => {
+      utils.mountain.getBySlug.invalidate({ slug: mountainSlug });
+      reset();
+      onClose();
+    },
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] ?? null;
+    setFileError("");
+    if (f && !f.name.toLowerCase().endsWith(".gpx")) {
+      setFileError("Only .gpx files are supported");
+      setFile(null);
+    } else {
+      setFile(f);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!file) return;
+    const gpxContent = await file.text();
+    uploadMutation.mutate({ mountainId, name, difficulty: difficulty as never, gpxContent });
+  };
+
+  const canSubmit = name.trim().length > 0 && !!file && !fileError && !uploadMutation.isPending;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <DialogTitle fontWeight={700}>Upload Trail GPX</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
+          <TextField
+            label="Trail name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Northeast Ridge"
+            fullWidth
+            required
+          />
+          <FormControl fullWidth>
+            <InputLabel>Difficulty</InputLabel>
+            <Select
+              value={difficulty}
+              label="Difficulty"
+              onChange={(e) => setDifficulty(e.target.value)}
+            >
+              {Object.entries(DIFFICULTY_LABELS).map(([val, label]) => (
+                <MenuItem key={val} value={val}>{label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Box>
+            <Button
+              component="label"
+              variant="outlined"
+              startIcon={<CloudUploadIcon />}
+              fullWidth
+              sx={{ borderRadius: 2, py: 1.5, borderStyle: "dashed" }}
+            >
+              {file ? file.name : "Choose .gpx file"}
+              <input type="file" accept=".gpx" hidden onChange={handleFileChange} />
+            </Button>
+            {fileError && (
+              <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block" }}>
+                {fileError}
+              </Typography>
+            )}
+          </Box>
+          {uploadMutation.error && (
+            <Typography variant="caption" color="error">
+              {uploadMutation.error.message}
+            </Typography>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={() => { reset(); onClose(); }}>Cancel</Button>
+        <Button variant="contained" disabled={!canSubmit} onClick={handleSubmit}>
+          {uploadMutation.isPending ? "Uploading…" : "Upload"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ── Edit Trail dialog (admin only) ─────────────────────────────────────────────
+
+type TrailForEdit = {
+  id: string; name: string;
+  difficulty: "CLASS_1" | "CLASS_2" | "CLASS_3" | "CLASS_4" | "CLASS_5";
+  description: string | null;
+  roundTripMiles: number | null;
+  elevationGain: number | null;
+  estimatedHours: number | null;
+  trailheadElevation: number | null;
+};
+
+function EditTrailDialog({
+  open,
+  onClose,
+  trail,
+  mountainSlug,
+}: {
+  open: boolean;
+  onClose: () => void;
+  trail: TrailForEdit;
+  mountainSlug: string;
+}) {
+  const utils = trpc.useUtils();
+  const [name, setName] = useState(trail.name);
+  const [difficulty, setDifficulty] = useState(trail.difficulty);
+  const [description, setDescription] = useState(trail.description ?? "");
+  const [miles, setMiles] = useState(trail.roundTripMiles?.toString() ?? "");
+  const [gain, setGain] = useState(trail.elevationGain?.toString() ?? "");
+  const [hours, setHours] = useState(trail.estimatedHours?.toString() ?? "");
+  const [trailheadElev, setTrailheadElev] = useState(trail.trailheadElevation?.toString() ?? "");
+
+  // Sync fields when trail prop changes (opening a different trail)
+  const handleEnter = () => {
+    setName(trail.name);
+    setDifficulty(trail.difficulty);
+    setDescription(trail.description ?? "");
+    setMiles(trail.roundTripMiles?.toString() ?? "");
+    setGain(trail.elevationGain?.toString() ?? "");
+    setHours(trail.estimatedHours?.toString() ?? "");
+    setTrailheadElev(trail.trailheadElevation?.toString() ?? "");
+  };
+
+  const updateMutation = trpc.trail.update.useMutation({
+    onSuccess: () => {
+      utils.mountain.getBySlug.invalidate({ slug: mountainSlug });
+      onClose();
+    },
+  });
+
+  const handleSubmit = () => {
+    updateMutation.mutate({
+      id: trail.id,
+      name,
+      difficulty,
+      description: description.trim() || null,
+      roundTripMiles: miles ? parseFloat(miles) : null,
+      elevationGain: gain ? parseInt(gain, 10) : null,
+      estimatedHours: hours ? parseFloat(hours) : null,
+      trailheadElevation: trailheadElev ? parseInt(trailheadElev, 10) : null,
+    });
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      TransitionProps={{ onEnter: handleEnter }}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 3 } }}
+    >
+      <DialogTitle fontWeight={700}>Edit Trail</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
+          <TextField
+            label="Trail name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            fullWidth
+            required
+          />
+          <FormControl fullWidth>
+            <InputLabel>Difficulty</InputLabel>
+            <Select
+              value={difficulty}
+              label="Difficulty"
+              onChange={(e) => setDifficulty(e.target.value as typeof difficulty)}
+            >
+              {Object.entries(DIFFICULTY_LABELS).map(([val, label]) => (
+                <MenuItem key={val} value={val}>{label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <TextField
+            label="Description (optional)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            multiline
+            rows={3}
+            fullWidth
+          />
+          <Stack direction="row" spacing={2}>
+            <TextField label="Round trip (mi)" value={miles} onChange={(e) => setMiles(e.target.value)} type="number" fullWidth size="small" />
+            <TextField label="Elevation gain (ft)" value={gain} onChange={(e) => setGain(e.target.value)} type="number" fullWidth size="small" />
+          </Stack>
+          <Stack direction="row" spacing={2}>
+            <TextField label="Est. hours" value={hours} onChange={(e) => setHours(e.target.value)} type="number" fullWidth size="small" />
+            <TextField label="Trailhead elev. (ft)" value={trailheadElev} onChange={(e) => setTrailheadElev(e.target.value)} type="number" fullWidth size="small" />
+          </Stack>
+          {updateMutation.error && (
+            <Typography variant="caption" color="error">{updateMutation.error.message}</Typography>
+          )}
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="contained"
+          disabled={!name.trim() || updateMutation.isPending}
+          onClick={handleSubmit}
+        >
+          {updateMutation.isPending ? "Saving…" : "Save"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 function toSlug(name: string) {
@@ -561,14 +818,31 @@ function toSlug(name: string) {
 
 export default function MountainDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
   const [logOpen, setLogOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [editingTrail, setEditingTrail] = useState<TrailForEdit | null>(null);
+  const [selectedTrailId, setSelectedTrailId] = useState<string>("");
 
   const utils = trpc.useUtils();
   const { data: mountain, isLoading, isError } = trpc.mountain.getBySlug.useQuery({ slug });
 
   // Use the db id (from mountain data) for all user-specific queries
   const id = mountain?.id ?? "";
+
+  // Cast trails once here — Prisma's Json field creates a deep recursive type
+  // that causes "type instantiation excessively deep" errors in every .map() call.
+  type TrailRow = {
+    id: string; name: string;
+    difficulty: "CLASS_1" | "CLASS_2" | "CLASS_3" | "CLASS_4" | "CLASS_5";
+    description: string | null;
+    roundTripMiles: number | null; elevationGain: number | null; estimatedHours: number | null;
+    trailheadElevation: number | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    geometry: any;
+  };
+  const trails: TrailRow[] = (mountain?.trails ?? []) as TrailRow[];
 
   const { data: favData } = trpc.user.isFavorite.useQuery(
     { mountainId: id },
@@ -582,6 +856,10 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
     { mountainId: id },
     { enabled: !!accessToken && !!id }
   );
+
+  const deleteTrailMutation = trpc.trail.delete.useMutation({
+    onSuccess: () => utils.mountain.getBySlug.invalidate({ slug }),
+  });
 
   const addFavMutation = trpc.user.addFavorite.useMutation({
     onSuccess: () => utils.user.isFavorite.invalidate({ mountainId: id }),
@@ -739,18 +1017,87 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
               )}
             </Paper>
 
+            {/* Trail Map */}
+            {!isLoading && (() => {
+              const trailsWithGeo = trails.filter((t) => t.geometry?.coordinates?.length > 1);
+              const activeId = selectedTrailId || trailsWithGeo[0]?.id;
+              const visibleTrails = trailsWithGeo.filter((t) => t.id === activeId);
+              return (
+                <Paper sx={{ borderRadius: 3, mt: 3, overflow: "hidden" }}>
+                  <Box sx={{ px: 3, pt: 2.5, pb: trailsWithGeo.length > 1 ? 0 : 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <Typography variant="h6" fontWeight={700}>Trail Map</Typography>
+                    {isAdmin && trailsWithGeo.length === 0 && (
+                      <Button size="small" variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => setUploadOpen(true)} sx={{ borderRadius: 2 }}>
+                        Upload Trail
+                      </Button>
+                    )}
+                  </Box>
+                  {trailsWithGeo.length > 1 && (
+                    <Tabs
+                      value={activeId}
+                      onChange={(_, v) => setSelectedTrailId(v)}
+                      variant="scrollable"
+                      scrollButtons="auto"
+                      sx={{ px: 2, borderBottom: 1, borderColor: "divider" }}
+                    >
+                      {trailsWithGeo.map((t) => (
+                        <Tab key={t.id} label={t.name} value={t.id} />
+                      ))}
+                    </Tabs>
+                  )}
+                  <TrailMap
+                    latitude={mountain!.latitude}
+                    longitude={mountain!.longitude}
+                    name={mountain!.name}
+                    trails={visibleTrails}
+                    height={400}
+                  />
+                </Paper>
+              );
+            })()}
+
             {/* Trails */}
-            {!isLoading && mountain!.trails.length > 0 && (
+            {!isLoading && trails.length > 0 && (
               <Paper sx={{ p: 3, borderRadius: 3, mt: 3 }}>
-                <Typography variant="h6" fontWeight={700} gutterBottom>
-                  Routes ({mountain!.trails.length})
-                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                  <Typography variant="h6" fontWeight={700}>
+                    Routes ({trails.length})
+                  </Typography>
+                  {isAdmin && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<CloudUploadIcon />}
+                      onClick={() => setUploadOpen(true)}
+                      sx={{ borderRadius: 2 }}
+                    >
+                      Upload Trail
+                    </Button>
+                  )}
+                </Box>
                 <Stack divider={<Divider />} spacing={0}>
-                  {mountain!.trails.map((trail) => (
+                  {trails.map((trail) => (
                     <Box key={trail.id} sx={{ py: 2 }}>
                       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
                         <Typography fontWeight={600}>{trail.name}</Typography>
-                        <DifficultyChip difficulty={trail.difficulty} />
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                          <DifficultyChip difficulty={trail.difficulty} />
+                          {isAdmin && (
+                            <>
+                              <IconButton size="small" onClick={() => setEditingTrail(trail as TrailForEdit)}>
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                disabled={deleteTrailMutation.isPending}
+                                onClick={() => deleteTrailMutation.mutate({ id: trail.id })}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </>
+                          )}
+                        </Stack>
                       </Box>
                       {trail.description && (
                         <Typography variant="body2" color="text.secondary">{trail.description}</Typography>
@@ -875,8 +1222,26 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
           mountainId={id}
           mountainSlug={slug}
           mountainName={mountain.name}
-          trails={mountain.trails.map((t) => ({ id: t.id, name: t.name }))}
+          trails={trails.map((t) => ({ id: t.id, name: t.name }))}
           hasExistingReview={!!myReview}
+        />
+      )}
+
+      {mountain && isAdmin && (
+        <UploadTrailDialog
+          open={uploadOpen}
+          onClose={() => setUploadOpen(false)}
+          mountainId={id}
+          mountainSlug={slug}
+        />
+      )}
+
+      {editingTrail && (
+        <EditTrailDialog
+          open={!!editingTrail}
+          onClose={() => setEditingTrail(null)}
+          trail={editingTrail}
+          mountainSlug={slug}
         />
       )}
     </Box>

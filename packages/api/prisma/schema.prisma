@@ -114,6 +114,8 @@ model Trail {
   estimatedHours     Float?
   description        String?
   imageUrl           String?
+  /// GeoJSON LineString — { type: "LineString", coordinates: [[lon, lat], ...] }
+  geometry           Json?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
