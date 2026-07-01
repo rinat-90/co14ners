@@ -36,10 +36,10 @@ function ChangeEmailSection() {
   });
 
   return (
-    <Paper sx={{ p: 3, borderRadius: 3 }}>
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
       <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
         <EmailIcon color="primary" />
-        <Typography variant="h6" fontWeight={700}>Change Email</Typography>
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>Change Email</Typography>
       </Stack>
       <Stack spacing={2}>
         <TextField
@@ -92,10 +92,10 @@ function ChangePasswordSection() {
   });
 
   return (
-    <Paper sx={{ p: 3, borderRadius: 3 }}>
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
       <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
         <LockIcon color="primary" />
-        <Typography variant="h6" fontWeight={700}>Change Password</Typography>
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>Change Password</Typography>
       </Stack>
       <Stack spacing={2}>
         <TextField
@@ -154,7 +154,7 @@ export default function SettingsPage() {
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
       <AppHeader />
       <Box sx={{ maxWidth: 600, mx: "auto", px: { xs: 2, md: 4 }, py: 5 }}>
-        <Typography variant="h4" fontWeight={700} mb={4}>
+        <Typography variant="h4" fontWeight={700} mb={4} sx={{ fontSize: { xs: "1.5rem", md: "2.125rem" } }}>
           Settings
         </Typography>
         <Stack spacing={3}>

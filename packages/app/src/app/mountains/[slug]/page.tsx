@@ -63,10 +63,10 @@ function fmtDate(d: Date | string) {
 
 function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <Paper variant="outlined" sx={{ p: 2, textAlign: "center", borderRadius: 3, flex: 1, minWidth: 120 }}>
-      <Box sx={{ color: "primary.main", mb: 0.5 }}>{icon}</Box>
-      <Typography variant="h6" fontWeight={700}>{value}</Typography>
-      <Typography variant="caption" color="text.secondary">{label}</Typography>
+    <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2 }, textAlign: "center", borderRadius: 3, flex: 1, minWidth: 110 }}>
+      <Box sx={{ color: "primary.main", mb: 0.5, "& svg": { fontSize: { xs: "1.2rem", md: "1.5rem" } } }}>{icon}</Box>
+      <Typography variant="subtitle1" fontWeight={700} sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>{value}</Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>{label}</Typography>
     </Paper>
   );
 }
@@ -365,10 +365,10 @@ function ReviewsSection({ mountainId, mountainSlug, accessToken }: { mountainId:
       : null;
 
   return (
-    <Paper sx={{ p: 3, borderRadius: 3, mt: 3 }}>
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mt: 3 }}>
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <Typography variant="h6" fontWeight={700}>
+          <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>
             Reviews
           </Typography>
           {avgRating !== null && (
@@ -396,7 +396,7 @@ function ReviewsSection({ mountainId, mountainSlug, accessToken }: { mountainId:
               {myReview.title && (
                 <Typography fontWeight={600} mt={0.5}>{myReview.title}</Typography>
               )}
-              <Typography variant="body2" color="text.secondary" mt={0.5}>
+              <Typography variant="body2" color="text.secondary" mt={0.5} sx={{ fontSize: { xs: "0.8125rem", md: "0.875rem" }, lineHeight: 1.6 }}>
                 {myReview.body}
               </Typography>
               <Typography variant="caption" color="text.disabled" mt={0.5} display="block">
@@ -447,7 +447,7 @@ function ReviewsSection({ mountainId, mountainSlug, accessToken }: { mountainId:
                     {review.title && (
                       <Typography variant="body2" fontWeight={600} mt={0.5}>{review.title}</Typography>
                     )}
-                    <Typography variant="body2" color="text.secondary" mt={0.25}>
+                    <Typography variant="body2" color="text.secondary" mt={0.25} sx={{ fontSize: { xs: "0.8125rem", md: "0.875rem" }, lineHeight: 1.6 }}>
                       {review.body}
                     </Typography>
                   </Box>
@@ -922,11 +922,11 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                 <DifficultyChip difficulty={mountain!.difficulty} size="medium" />
                 <RangeLabel range={mountain!.range} sx={{ color: "rgba(255,255,255,0.85)" }} />
               </Stack>
-              <Typography variant="h2" fontWeight={700} gutterBottom>
+              <Typography variant="h2" fontWeight={700} gutterBottom sx={{ fontSize: { xs: "1.9rem", md: "3.75rem" }, lineHeight: { xs: 1.15, md: 1.2 } }}>
                 {mountain!.name}
               </Typography>
               <Stack direction="row" spacing={2} alignItems="center">
-                <Typography variant="h4" fontWeight={800} sx={{ opacity: 0.95 }}>
+                <Typography variant="h4" fontWeight={800} sx={{ opacity: 0.95, fontSize: { xs: "1.35rem", md: "2.125rem" } }}>
                   {mountain!.altitude.toLocaleString()} ft
                 </Typography>
                 {myCompletion && (
@@ -1002,8 +1002,8 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
         <Grid container spacing={3}>
           {/* Main column */}
           <Grid size={{ xs: 12, md: 8 }}>
-            <Paper sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6" fontWeight={700} gutterBottom>About</Typography>
+            <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>About</Typography>
               {isLoading ? (
                 <>
                   <Skeleton variant="text" />
@@ -1011,7 +1011,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                   <Skeleton variant="text" width="70%" />
                 </>
               ) : (
-                <Typography color="text.secondary" sx={{ lineHeight: 1.8 }}>
+                <Typography color="text.secondary" sx={{ lineHeight: 1.8, fontSize: { xs: "0.875rem", md: "1rem" } }}>
                   {mountain!.description ?? "No description available."}
                 </Typography>
               )}
@@ -1025,7 +1025,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
               return (
                 <Paper sx={{ borderRadius: 3, mt: 3, overflow: "hidden" }}>
                   <Box sx={{ px: 3, pt: 2.5, pb: trailsWithGeo.length > 1 ? 0 : 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <Typography variant="h6" fontWeight={700}>Trail Map</Typography>
+                    <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>Trail Map</Typography>
                     {isAdmin && trailsWithGeo.length === 0 && (
                       <Button size="small" variant="outlined" startIcon={<CloudUploadIcon />} onClick={() => setUploadOpen(true)} sx={{ borderRadius: 2 }}>
                         Upload Trail
@@ -1058,9 +1058,9 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
 
             {/* Trails */}
             {!isLoading && trails.length > 0 && (
-              <Paper sx={{ p: 3, borderRadius: 3, mt: 3 }}>
+              <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mt: 3 }}>
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                  <Typography variant="h6" fontWeight={700}>
+                  <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>
                     Routes ({trails.length})
                   </Typography>
                   {isAdmin && (
@@ -1079,7 +1079,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                   {trails.map((trail) => (
                     <Box key={trail.id} sx={{ py: 2 }}>
                       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.5 }}>
-                        <Typography fontWeight={600}>{trail.name}</Typography>
+                        <Typography fontWeight={600} sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>{trail.name}</Typography>
                         <Stack direction="row" spacing={0.5} alignItems="center">
                           <DifficultyChip difficulty={trail.difficulty} />
                           {isAdmin && (
@@ -1135,8 +1135,8 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
 
           {/* Sidebar */}
           <Grid size={{ xs: 12, md: 4 }}>
-            <Paper sx={{ p: 3, borderRadius: 3 }}>
-              <Typography variant="h6" fontWeight={700} gutterBottom>Details</Typography>
+            <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+              <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>Details</Typography>
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <Skeleton key={i} variant="text" sx={{ mb: 1 }} />

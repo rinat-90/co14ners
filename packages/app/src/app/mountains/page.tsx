@@ -74,11 +74,11 @@ export default function MountainsPage() {
           textAlign: "center",
         }}
       >
-        <TerrainIcon sx={{ fontSize: 56, mb: 1, opacity: 0.9 }} />
-        <Typography variant="h3" fontWeight={700} gutterBottom>
+        <TerrainIcon sx={{ fontSize: { xs: 44, md: 56 }, mb: 1, opacity: 0.9 }} />
+        <Typography variant="h3" fontWeight={700} gutterBottom sx={{ fontSize: { xs: "1.75rem", md: "3rem" } }}>
           Colorado 14ers
         </Typography>
-        <Typography variant="h6" sx={{ opacity: 0.85, maxWidth: 500, mx: "auto" }}>
+        <Typography variant="h6" sx={{ opacity: 0.85, maxWidth: 500, mx: "auto", fontSize: { xs: "0.95rem", md: "1.25rem" } }}>
           {mountains ? `${mountains.length} peaks` : "Explore all"} above 14,000 feet
         </Typography>
       </Box>
@@ -160,7 +160,7 @@ export default function MountainsPage() {
                       />
                       <CardContent sx={{ flex: 1 }}>
                         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 0.5 }}>
-                          <Typography variant="h6" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+                          <Typography variant="h6" fontWeight={600} sx={{ lineHeight: 1.2, fontSize: { xs: "0.95rem", md: "1.25rem" } }}>
                             {m.name}
                           </Typography>
                           <DifficultyChip difficulty={m.difficulty} />
@@ -168,7 +168,7 @@ export default function MountainsPage() {
 
                         <RangeLabel range={m.range} sx={{ mb: 1.5 }} />
 
-                        <Typography variant="h5" fontWeight={800} color="primary">
+                        <Typography variant="h5" fontWeight={800} color="primary" sx={{ fontSize: { xs: "1.1rem", md: "1.5rem" } }}>
                           {m.altitude.toLocaleString()}
                           <Typography component="span" variant="body2" color="text.secondary" fontWeight={400}>
                             {" "}ft

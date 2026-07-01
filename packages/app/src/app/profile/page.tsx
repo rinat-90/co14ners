@@ -59,13 +59,13 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
   return (
     <Paper
       variant="outlined"
-      sx={{ p: 2.5, textAlign: "center", borderRadius: 3, flex: "1 1 140px" }}
+      sx={{ p: { xs: 1.5, md: 2.5 }, textAlign: "center", borderRadius: 3, flex: "1 1 120px" }}
     >
-      <Box sx={{ color: "primary.main", mb: 0.5 }}>{icon}</Box>
-      <Typography variant="h5" fontWeight={800}>
+      <Box sx={{ color: "primary.main", mb: 0.5, "& svg": { fontSize: { xs: "1.2rem", md: "1.5rem" } } }}>{icon}</Box>
+      <Typography variant="h5" fontWeight={800} sx={{ fontSize: { xs: "1.1rem", md: "1.5rem" } }}>
         {value}
       </Typography>
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: "0.7rem", md: "0.75rem" } }}>
         {label}
       </Typography>
     </Paper>
@@ -197,7 +197,7 @@ export default function ProfilePage() {
               </>
             ) : (
               <>
-                <Typography variant="h4" fontWeight={700}>
+                <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: "1.4rem", md: "2.125rem" } }}>
                   {me?.name ?? me?.email}
                 </Typography>
                 {me?.name && (
@@ -306,8 +306,8 @@ export default function ProfilePage() {
                             <Typography
                               component={NextLink}
                               href={`/mountains/${toSlug(c.mountain.name)}`}
-                              fontWeight={700}
-                              sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                              fontWeight={600}
+                              sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" }, fontSize: { xs: "0.875rem", md: "1rem" } }}
                             >
                               {c.mountain.name}
                             </Typography>

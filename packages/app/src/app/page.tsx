@@ -32,11 +32,11 @@ export default function HomePage() {
           textAlign: "center",
         }}
       >
-        <TerrainIcon sx={{ fontSize: 64, mb: 2, opacity: 0.9 }} />
-        <Typography variant="h3" fontWeight={700} gutterBottom>
+        <TerrainIcon sx={{ fontSize: { xs: 48, md: 64 }, mb: 2, opacity: 0.9 }} />
+        <Typography variant="h3" fontWeight={700} gutterBottom sx={{ fontSize: { xs: "1.75rem", md: "3rem" } }}>
           Welcome back{user?.name ? `, ${user.name}` : ""}!
         </Typography>
-        <Typography variant="h6" sx={{ opacity: 0.85, mb: 4 }}>
+        <Typography variant="h6" sx={{ opacity: 0.85, mb: 4, fontSize: { xs: "0.95rem", md: "1.25rem" } }}>
           Track your Colorado 14er summits
         </Typography>
         <Button
@@ -53,34 +53,34 @@ export default function HomePage() {
 
       <Box sx={{ maxWidth: 800, mx: "auto", px: { xs: 2, md: 4 }, py: 6 }}>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={3}>
-          <Paper sx={{ p: 3, borderRadius: 3, flex: 1, textAlign: "center" }}>
-            <TerrainIcon sx={{ fontSize: 40, color: "primary.main", mb: 1 }} />
-            <Typography variant="h5" fontWeight={700}>
+          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, flex: 1, textAlign: "center" }}>
+            <TerrainIcon sx={{ fontSize: { xs: 32, md: 40 }, color: "primary.main", mb: 1 }} />
+            <Typography variant="h5" fontWeight={700} sx={{ fontSize: { xs: "1.25rem", md: "1.5rem" } }}>
               {stats?.mountains ?? "—"}
             </Typography>
-            <Typography color="text.secondary">Total 14ers</Typography>
+            <Typography color="text.secondary" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>Total 14ers</Typography>
             <Button component={NextLink} href="/mountains" size="small" sx={{ mt: 1.5 }}>
               View all peaks →
             </Button>
           </Paper>
 
-          <Paper sx={{ p: 3, borderRadius: 3, flex: 1, textAlign: "center" }}>
-            <EmojiEventsIcon sx={{ fontSize: 40, color: "secondary.main", mb: 1 }} />
-            <Typography variant="h5" fontWeight={700}>
+          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, flex: 1, textAlign: "center" }}>
+            <EmojiEventsIcon sx={{ fontSize: { xs: 32, md: 40 }, color: "secondary.main", mb: 1 }} />
+            <Typography variant="h5" fontWeight={700} sx={{ fontSize: { xs: "1.25rem", md: "1.5rem" } }}>
               {stats?.summits ?? "—"}
             </Typography>
-            <Typography color="text.secondary">Summits logged</Typography>
+            <Typography color="text.secondary" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>Summits logged</Typography>
             <Button component={NextLink} href="/mountains" size="small" sx={{ mt: 1.5 }}>
               Log a summit →
             </Button>
           </Paper>
 
-          <Paper sx={{ p: 3, borderRadius: 3, flex: 1, textAlign: "center" }}>
-            <ExploreIcon sx={{ fontSize: 40, color: "warning.main", mb: 1 }} />
-            <Typography variant="h5" fontWeight={700}>
+          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, flex: 1, textAlign: "center" }}>
+            <ExploreIcon sx={{ fontSize: { xs: 32, md: 40 }, color: "warning.main", mb: 1 }} />
+            <Typography variant="h5" fontWeight={700} sx={{ fontSize: { xs: "1.25rem", md: "1.5rem" } }}>
               {stats?.saves ?? "—"}
             </Typography>
-            <Typography color="text.secondary">Saved peaks</Typography>
+            <Typography color="text.secondary" sx={{ fontSize: { xs: "0.875rem", md: "1rem" } }}>Saved peaks</Typography>
             <Button component={NextLink} href="/profile" size="small" sx={{ mt: 1.5 }}>
               View saved →
             </Button>
