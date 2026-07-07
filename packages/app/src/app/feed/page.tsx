@@ -14,6 +14,7 @@ import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
+import ArticleIcon from "@mui/icons-material/Article";
 import DynamicFeedIcon from "@mui/icons-material/DynamicFeed";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
@@ -174,7 +175,7 @@ export default function FeedPage() {
                       height: 36,
                       fontSize: 13,
                       fontWeight: 700,
-                      bgcolor: event.type === "summit" ? "primary.main" : "secondary.main",
+                      bgcolor: event.type === "summit" ? "primary.main" : event.type === "report" ? "info.main" : "secondary.main",
                       flexShrink: 0,
                     }}
                   >
@@ -199,6 +200,13 @@ export default function FeedPage() {
                           label="summited"
                           size="small"
                           sx={{ bgcolor: "success.50", color: "success.dark", fontWeight: 600, fontSize: "0.7rem", height: 20 }}
+                        />
+                      ) : event.type === "report" ? (
+                        <Chip
+                          icon={<ArticleIcon sx={{ fontSize: "0.85rem !important" }} />}
+                          label="trip report"
+                          size="small"
+                          sx={{ bgcolor: "info.50", color: "info.dark", fontWeight: 600, fontSize: "0.7rem", height: 20 }}
                         />
                       ) : (
                         <Chip
@@ -238,6 +246,13 @@ export default function FeedPage() {
                     {/* Rating (review events) */}
                     {event.type === "review" && event.rating !== null && (
                       <Rating value={event.rating} readOnly size="small" sx={{ mt: 0.5 }} />
+                    )}
+
+                    {/* Trip report title */}
+                    {event.type === "report" && event.reportTitle && (
+                      <Typography variant="body2" fontWeight={600} color="text.primary" mt={0.5}>
+                        &ldquo;{event.reportTitle}&rdquo;
+                      </Typography>
                     )}
                   </Box>
 

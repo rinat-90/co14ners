@@ -74,6 +74,7 @@ model User {
   completions   Completion[]
   refreshTokens RefreshToken[]
   achievements  UserAchievement[]
+  tripReports   TripReport[]
 }
 
 /// Auto-unlocked badges earned by user activity
@@ -125,6 +126,7 @@ model Mountain {
   reviews     Review[]
   favorites   Favorite[]
   completions Completion[]
+  tripReports TripReport[]
 }
 
 /// A specific named route up a mountain (e.g. "East Ridge", "North Face")
@@ -150,6 +152,7 @@ model Trail {
 
   mountain    Mountain     @relation(fields: [mountainId], references: [id], onDelete: Cascade)
   completions Completion[]
+  tripReports TripReport[]
 }
 
 // ─── User activity models ──────────────────────────────────────────────────────
@@ -185,6 +188,26 @@ model Favorite {
   mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
 
   @@unique([userId, mountainId])
+}
+
+/// Detailed trip report written after a summit
+model TripReport {
+  id          String   @id @default(cuid())
+  userId      String
+  mountainId  String
+  trailId     String?
+  title       String
+  body        String   @db.Text
+  /// Overall conditions: EXCELLENT | GOOD | FAIR | POOR
+  conditions  String?
+  photoUrl    String?
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  trail    Trail?   @relation(fields: [trailId], references: [id])
 }
 
 /// A logged summit — users can summit the same mountain multiple times

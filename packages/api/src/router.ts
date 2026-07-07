@@ -7,6 +7,7 @@ import { trailRouter } from "./trail/trail.router.js";
 import { recommendationRouter } from "./recommendations/recommendation.router.js";
 import { weatherRouter } from "./weather/weather.router.js";
 import { feedRouter } from "./feed/feed.router.js";
+import { tripReportRouter } from "./tripReport/tripReport.router.js";
 
 export const appRouter = router({
   auth: authRouter,
@@ -17,6 +18,7 @@ export const appRouter = router({
   recommendation: recommendationRouter,
   weather: weatherRouter,
   feed: feedRouter,
+  tripReport: tripReportRouter,
 });
 
 export type AppRouter = typeof appRouter;

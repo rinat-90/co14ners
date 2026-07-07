@@ -12,7 +12,7 @@ export const feedRouter = router({
     .query(async ({ input }) => {
       const { cursor, limit } = input;
 
-      const [recentCompletions, recentReviews] = await Promise.all([
+      const [recentCompletions, recentReviews, recentReports] = await Promise.all([
         prisma.completion.findMany({
           where: { isPrivate: false },
           orderBy: { completedAt: "desc" },
@@ -31,6 +31,16 @@ export const feedRouter = router({
             mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
           },
         }),
+        prisma.tripReport.findMany({
+          where: { isPublic: true },
+          orderBy: { createdAt: "desc" },
+          take: limit * 2,
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+            mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
+            trail: { select: { name: true } },
+          },
+        }),
       ]);
 
       // Merge & sort by date
@@ -43,6 +53,8 @@ export const feedRouter = router({
           mountain: { ...c.mountain, slug: toSlug(c.mountain.name) },
           trail: c.trail,
           rating: null as number | null,
+          reportTitle: null as string | null,
+          conditions: null as string | null,
         })),
         ...recentReviews.map((r) => ({
           id: `review-${r.id}`,
@@ -52,6 +64,19 @@ export const feedRouter = router({
           mountain: { ...r.mountain, slug: toSlug(r.mountain.name) },
           trail: null,
           rating: r.rating,
+          reportTitle: null as string | null,
+          conditions: null as string | null,
+        })),
+        ...recentReports.map((rp) => ({
+          id: `report-${rp.id}`,
+          type: "report" as const,
+          date: rp.createdAt,
+          user: rp.user,
+          mountain: { ...rp.mountain, slug: toSlug(rp.mountain.name) },
+          trail: rp.trail,
+          rating: null as number | null,
+          reportTitle: rp.title,
+          conditions: rp.conditions,
         })),
       ]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())

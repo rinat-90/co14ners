@@ -498,6 +498,264 @@ function ReviewsSection({ mountainId, mountainSlug, accessToken }: { mountainId:
   );
 }
 
+// ── Trip Reports section ────────────────────────────────────────────────────────
+
+const CONDITIONS_LABELS: Record<string, { label: string; color: string }> = {
+  EXCELLENT: { label: "Excellent", color: "success" },
+  GOOD:      { label: "Good",      color: "info" },
+  FAIR:      { label: "Fair",      color: "warning" },
+  POOR:      { label: "Poor",      color: "error" },
+};
+
+function TripReportDialog({
+  open,
+  onClose,
+  mountainId,
+  mountainSlug,
+  trails,
+}: {
+  open: boolean;
+  onClose: () => void;
+  mountainId: string;
+  mountainSlug: string;
+  trails: { id: string; name: string }[];
+}) {
+  const utils = trpc.useUtils();
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [conditions, setConditions] = useState<"EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "">("");
+  const [trailId, setTrailId] = useState("");
+  const [isPublic, setIsPublic] = useState(true);
+
+  const createMutation = trpc.tripReport.create.useMutation({
+    onSuccess: () => {
+      utils.tripReport.list.invalidate({ mountainId });
+      onClose();
+      setTitle(""); setBody(""); setConditions(""); setTrailId("");
+    },
+  });
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+      <DialogTitle fontWeight={700}>Write a Trip Report</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2.5} sx={{ mt: 1 }}>
+          <TextField
+            label="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="e.g. Perfect bluebird day on the East Ridge"
+            fullWidth
+            inputProps={{ maxLength: 120 }}
+          />
+          <TextField
+            label="Report"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Describe the conditions, route, gear, highlights…"
+            multiline
+            rows={6}
+            fullWidth
+            inputProps={{ maxLength: 5000 }}
+          />
+          <Stack direction="row" spacing={2}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Conditions</InputLabel>
+              <Select
+                value={conditions}
+                label="Conditions"
+                onChange={(e) => setConditions(e.target.value as typeof conditions)}
+              >
+                <MenuItem value=""><em>Not specified</em></MenuItem>
+                <MenuItem value="EXCELLENT">Excellent</MenuItem>
+                <MenuItem value="GOOD">Good</MenuItem>
+                <MenuItem value="FAIR">Fair</MenuItem>
+                <MenuItem value="POOR">Poor</MenuItem>
+              </Select>
+            </FormControl>
+            {trails.length > 0 && (
+              <FormControl fullWidth size="small">
+                <InputLabel>Trail</InputLabel>
+                <Select value={trailId} label="Trail" onChange={(e) => setTrailId(e.target.value)}>
+                  <MenuItem value=""><em>Not specified</em></MenuItem>
+                  {trails.map((t) => (
+                    <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+          </Stack>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Chip
+              label={isPublic ? "Public" : "Private"}
+              size="small"
+              color={isPublic ? "primary" : "default"}
+              onClick={() => setIsPublic((v) => !v)}
+              sx={{ cursor: "pointer" }}
+            />
+            <Typography variant="caption" color="text.secondary">
+              {isPublic ? "Visible to the community" : "Only visible to you"}
+            </Typography>
+          </Stack>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="contained"
+          disabled={title.trim().length < 3 || body.trim().length < 10 || createMutation.isPending}
+          onClick={() =>
+            createMutation.mutate({
+              mountainId,
+              trailId: trailId || undefined,
+              title: title.trim(),
+              body: body.trim(),
+              conditions: conditions || undefined,
+              isPublic,
+            })
+          }
+        >
+          Publish
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function TripReportsSection({
+  mountainId,
+  mountainSlug,
+  accessToken,
+  trails,
+}: {
+  mountainId: string;
+  mountainSlug: string;
+  accessToken: string | null;
+  trails: { id: string; name: string }[];
+}) {
+  const utils = trpc.useUtils();
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const { data: reports, isLoading } = trpc.tripReport.list.useQuery({ mountainId });
+
+  const deleteMutation = trpc.tripReport.delete.useMutation({
+    onSuccess: () => utils.tripReport.list.invalidate({ mountainId }),
+  });
+
+  return (
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mt: 3 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 1 }}>
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>
+          Trip Reports
+          {reports && reports.length > 0 && (
+            <Typography component="span" variant="body2" color="text.secondary" ml={1}>
+              ({reports.length})
+            </Typography>
+          )}
+        </Typography>
+        {accessToken && (
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<ArticleIcon />}
+            onClick={() => setDialogOpen(true)}
+            sx={{ borderRadius: 2 }}
+          >
+            Write Report
+          </Button>
+        )}
+      </Box>
+
+      {isLoading ? (
+        Array.from({ length: 2 }).map((_, i) => (
+          <Skeleton key={i} variant="rounded" height={100} sx={{ mb: 1.5, borderRadius: 2 }} />
+        ))
+      ) : reports?.length === 0 ? (
+        <Typography color="text.secondary" variant="body2" textAlign="center" py={2}>
+          No trip reports yet. Be the first to write one!
+        </Typography>
+      ) : (
+        <Stack divider={<Divider />} spacing={0}>
+          {reports?.map((report) => {
+            const cond = report.conditions ? CONDITIONS_LABELS[report.conditions] : null;
+            return (
+              <Box key={report.id} sx={{ py: 2.5 }}>
+                <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
+                  <Avatar
+                    component={NextLink}
+                    href={`/users/${report.user.id}`}
+                    sx={{ width: 32, height: 32, fontSize: 12, bgcolor: "secondary.main", textDecoration: "none", flexShrink: 0 }}
+                  >
+                    {initials(report.user.name, report.user.email)}
+                  </Avatar>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 0.5 }}>
+                      <Typography
+                        component={NextLink}
+                        href={`/users/${report.user.id}`}
+                        variant="body2"
+                        fontWeight={700}
+                        sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                      >
+                        {report.user.name ?? report.user.email.split("@")[0]}
+                      </Typography>
+                      {cond && (
+                        <Chip
+                          label={cond.label}
+                          size="small"
+                          color={cond.color as "success" | "info" | "warning" | "error"}
+                          variant="outlined"
+                          sx={{ height: 20, fontSize: "0.7rem" }}
+                        />
+                      )}
+                      {report.trail && (
+                        <Typography variant="caption" color="text.secondary">via {report.trail.name}</Typography>
+                      )}
+                      <Typography variant="caption" color="text.disabled">{fmtDate(report.createdAt)}</Typography>
+                    </Box>
+                    <Typography variant="body2" fontWeight={600} mb={0.5}>{report.title}</Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ lineHeight: 1.65, fontSize: { xs: "0.8125rem", md: "0.875rem" }, whiteSpace: "pre-wrap" }}
+                    >
+                      {report.body}
+                    </Typography>
+                  </Box>
+                  {/* Delete own report */}
+                  {/* We pass accessToken but can't check userId easily client-side; hide button if not logged in */}
+                  {accessToken && (
+                    <Tooltip title="Delete report">
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          sx={{ flexShrink: 0 }}
+                          onClick={() => deleteMutation.mutate({ id: report.id })}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  )}
+                </Box>
+              </Box>
+            );
+          })}
+        </Stack>
+      )}
+
+      <TripReportDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        mountainId={mountainId}
+        mountainSlug={mountainSlug}
+        trails={trails}
+      />
+    </Paper>
+  );
+}
+
 // ── Private note ───────────────────────────────────────────────────────────────
 
 function PrivateNoteSection({
@@ -1277,6 +1535,14 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
 
             {/* Reviews */}
             <ReviewsSection mountainId={id} mountainSlug={slug} accessToken={accessToken} />
+
+            {/* Trip Reports */}
+            <TripReportsSection
+              mountainId={id}
+              mountainSlug={slug}
+              accessToken={accessToken}
+              trails={trails.map((t) => ({ id: t.id, name: t.name }))}
+            />
           </Grid>
 
           {/* Sidebar */}
