@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, protectedProcedure } from "../trpc.js";
+import { router, protectedProcedure, publicProcedure } from "../trpc.js";
 import { userService } from "./user.service.js";
 import {
   logSummitSchema,
@@ -56,4 +56,8 @@ export const userRouter = router({
     .mutation(({ ctx, input }) => userService.updatePassword(ctx.user.id, input.currentPassword, input.newPassword)),
 
   achievements: protectedProcedure.query(({ ctx }) => userService.getAchievements(ctx.user.id)),
+
+  publicProfile: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(({ input }) => userService.getPublicProfile(input.userId)),
 });

@@ -59,4 +59,49 @@ export const feedRouter = router({
 
       return events;
     }),
+
+  leaderboard: publicProcedure.query(async () => {
+    // Unique (userId, mountainId) pairs to count distinct summits per user
+    const unique = await prisma.completion.findMany({
+      distinct: ["userId", "mountainId"],
+      select: { userId: true, mountainId: true },
+    });
+
+    // Count unique peaks per user
+    const peakCount = new Map<string, number>();
+    for (const { userId } of unique) {
+      peakCount.set(userId, (peakCount.get(userId) ?? 0) + 1);
+    }
+
+    const top10 = [...peakCount.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+
+    const userIds = top10.map(([id]) => id);
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true, email: true },
+    });
+
+    // Get highest peak per user for tiebreaker display
+    const highestPeaks = await prisma.completion.findMany({
+      where: { userId: { in: userIds } },
+      include: { mountain: { select: { altitude: true } } },
+      orderBy: { mountain: { altitude: "desc" } },
+    });
+    const highestMap = new Map<string, number>();
+    for (const c of highestPeaks) {
+      if (!highestMap.has(c.userId)) highestMap.set(c.userId, c.mountain.altitude);
+    }
+
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    return top10.map(([userId, uniquePeaks], i) => ({
+      rank: i + 1,
+      userId,
+      name: userMap.get(userId)?.name ?? userMap.get(userId)?.email?.split("@")[0] ?? "Unknown",
+      uniquePeaks,
+      highestPeak: highestMap.get(userId) ?? 0,
+    }));
+  }),
 });

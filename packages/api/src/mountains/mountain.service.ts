@@ -53,4 +53,81 @@ export const mountainService = {
     if (!mountain) throw new TRPCError({ code: "NOT_FOUND", message: "Mountain not found" });
     return mountain;
   },
+
+  async nearby(mountainId: string, radiusMiles = 20, limit = 4) {
+    const origin = await prisma.mountain.findUniqueOrThrow({ where: { id: mountainId } });
+    const all = await prisma.mountain.findMany({
+      where: { id: { not: mountainId } },
+      select: { id: true, name: true, altitude: true, difficulty: true, range: true, latitude: true, longitude: true, roundTripMiles: true, elevationGain: true },
+    });
+
+    const R = 3959; // Earth radius miles
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const distMiles = (lat2: number, lon2: number) => {
+      const dLat = toRad(lat2 - origin.latitude);
+      const dLon = toRad(lon2 - origin.longitude);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(origin.latitude)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.asin(Math.sqrt(a));
+    };
+
+    return all
+      .map((m) => ({ ...m, slug: toSlug(m.name), distanceMiles: distMiles(m.latitude, m.longitude) }))
+      .filter((m) => m.distanceMiles <= radiusMiles)
+      .sort((a, b) => a.distanceMiles - b.distanceMiles)
+      .slice(0, limit);
+  },
+
+  async recentConditions(mountainId: string) {
+    const [completions, reviews] = await Promise.all([
+      prisma.completion.findMany({
+        where: { mountainId, isPrivate: false, notes: { not: null } },
+        orderBy: { completedAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          completedAt: true,
+          notes: true,
+          user: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      prisma.review.findMany({
+        where: { mountainId },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: {
+          id: true,
+          rating: true,
+          body: true,
+          hikedAt: true,
+          createdAt: true,
+          user: { select: { id: true, name: true, email: true } },
+        },
+      }),
+    ]);
+
+    const items = [
+      ...completions.map((c) => ({
+        id: `c-${c.id}`,
+        type: "note" as const,
+        date: c.completedAt,
+        text: c.notes!,
+        rating: null as number | null,
+        user: c.user,
+      })),
+      ...reviews.map((r) => ({
+        id: `r-${r.id}`,
+        type: "review" as const,
+        date: r.hikedAt ?? r.createdAt,
+        text: r.body,
+        rating: r.rating,
+        user: r.user,
+      })),
+    ]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5);
+
+    return items;
+  },
 };

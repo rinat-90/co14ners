@@ -34,6 +34,10 @@ import MapIcon from "@mui/icons-material/Map";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
+} from "recharts";
 import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
 import RangeLabel from "@/components/mountains/RangeLabel";
@@ -137,6 +141,186 @@ function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+// ── Stats tab ──────────────────────────────────────────────────────────────────
+
+const RANGE_LABELS: Record<string, string> = {
+  SAWATCH: "Sawatch", ELK: "Elk", SAN_JUAN: "San Juan",
+  TENMILE_MOSQUITO: "Tenmile", FRONT: "Front", SANGRE_DE_CRISTO: "Sangre", OTHER: "Other",
+};
+const DIFF_LABELS: Record<string, string> = {
+  CLASS_1: "C1", CLASS_2: "C2", CLASS_3: "C3", CLASS_4: "C4", CLASS_5: "C5",
+};
+const DIFF_COLORS = ["#22c55e", "#3b82f6", "#f59e0b", "#f97316", "#ef4444"];
+const CHART_BLUE = "#1d4ed8";
+
+type Completion = {
+  id: string;
+  mountainId: string;
+  completedAt: Date | string;
+  mountain: { altitude: number; range: string; difficulty: string };
+};
+
+function StatsTab({ completions }: { completions: Completion[] }) {
+  // Peaks by range
+  const byRange = Object.entries(
+    completions.reduce((acc, c) => {
+      const key = c.mountain.range;
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {} as Record<string, number>)
+  )
+    .map(([range, count]) => ({ range: RANGE_LABELS[range] ?? range, count }))
+    .sort((a, b) => b.count - a.count);
+
+  // Peaks by difficulty
+  const byDiff = ["CLASS_1", "CLASS_2", "CLASS_3", "CLASS_4", "CLASS_5"].map((d, i) => ({
+    name: DIFF_LABELS[d],
+    value: completions.filter((c) => c.mountain.difficulty === d).length,
+    color: DIFF_COLORS[i],
+  })).filter((d) => d.value > 0);
+
+  // Monthly activity (last 14 months)
+  const now = new Date();
+  const monthly = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+    const label = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+    const count = completions.filter((c) => {
+      const cd = new Date(c.completedAt);
+      return cd.getFullYear() === d.getFullYear() && cd.getMonth() === d.getMonth();
+    }).length;
+    return { label, count };
+  });
+
+  // Cumulative unique peaks over time
+  const sorted = [...completions].sort(
+    (a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()
+  );
+  const cumulative: { date: string; peaks: number }[] = [];
+  const seen = new Set<string>();
+  for (const c of sorted) {
+    seen.add(c.mountainId);
+    const last = cumulative[cumulative.length - 1];
+    const dateStr = new Date(c.completedAt).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+    if (last?.date === dateStr) {
+      last.peaks = seen.size;
+    } else {
+      cumulative.push({ date: dateStr, peaks: seen.size });
+    }
+  }
+
+  const totalElevation = completions.reduce((s, c) => s + c.mountain.altitude, 0);
+  const highestPeak = completions.reduce((max, c) => Math.max(max, c.mountain.altitude), 0);
+
+  if (completions.length === 0) {
+    return (
+      <Box sx={{ textAlign: "center", py: 8 }}>
+        <TerrainIcon sx={{ fontSize: 64, color: "text.disabled", mb: 2 }} />
+        <Typography color="text.secondary">Log summits to see your stats!</Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Stack spacing={3}>
+      {/* Key numbers */}
+      <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
+        <Paper variant="outlined" sx={{ px: 2.5, py: 2, borderRadius: 3, flex: "1 1 140px", textAlign: "center" }}>
+          <Typography variant="h5" fontWeight={800} color="primary.main">{completions.length}</Typography>
+          <Typography variant="caption" color="text.secondary">Total summits (incl. repeats)</Typography>
+        </Paper>
+        <Paper variant="outlined" sx={{ px: 2.5, py: 2, borderRadius: 3, flex: "1 1 140px", textAlign: "center" }}>
+          <Typography variant="h5" fontWeight={800} color="success.main">{new Set(completions.map(c => c.mountainId)).size}</Typography>
+          <Typography variant="caption" color="text.secondary">Unique peaks</Typography>
+        </Paper>
+        <Paper variant="outlined" sx={{ px: 2.5, py: 2, borderRadius: 3, flex: "1 1 140px", textAlign: "center" }}>
+          <Typography variant="h5" fontWeight={800} color="warning.main">{(totalElevation / 5280).toFixed(1)}mi</Typography>
+          <Typography variant="caption" color="text.secondary">Total vertical (mi)</Typography>
+        </Paper>
+        <Paper variant="outlined" sx={{ px: 2.5, py: 2, borderRadius: 3, flex: "1 1 140px", textAlign: "center" }}>
+          <Typography variant="h5" fontWeight={800} color="secondary.main">{highestPeak.toLocaleString()}ft</Typography>
+          <Typography variant="caption" color="text.secondary">Highest summit</Typography>
+        </Paper>
+      </Stack>
+
+      {/* Monthly activity */}
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+        <Typography variant="subtitle2" fontWeight={700} mb={2}>Monthly Activity (last 12 months)</Typography>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={monthly} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+            <ChartTooltip formatter={(v) => [`${v} summit${Number(v) !== 1 ? "s" : ""}`, ""]} />
+            <Bar dataKey="count" fill={CHART_BLUE} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Paper>
+
+      {/* Cumulative progress */}
+      {cumulative.length > 1 && (
+        <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+          <Typography variant="subtitle2" fontWeight={700} mb={2}>Cumulative Unique Peaks</Typography>
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart data={cumulative} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="peakGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={CHART_BLUE} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={CHART_BLUE} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+              <ChartTooltip formatter={(v) => [`${v} peak${Number(v) !== 1 ? "s" : ""}`, ""]} />
+              <Area type="monotone" dataKey="peaks" stroke={CHART_BLUE} strokeWidth={2} fill="url(#peakGrad)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </Paper>
+      )}
+
+      {/* Range + Difficulty side by side */}
+      <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+        <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, flex: 1 }}>
+          <Typography variant="subtitle2" fontWeight={700} mb={2}>Peaks by Range</Typography>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={byRange} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
+              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+              <YAxis type="category" dataKey="range" tick={{ fontSize: 11 }} width={60} />
+              <ChartTooltip formatter={(v) => [`${v} peak${Number(v) !== 1 ? "s" : ""}`, ""]} />
+              <Bar dataKey="count" fill="#15803d" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Paper>
+
+        {byDiff.length > 0 && (
+          <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, flex: 1 }}>
+            <Typography variant="subtitle2" fontWeight={700} mb={2}>Difficulty Breakdown</Typography>
+            <ResponsiveContainer width="100%" height={180}>
+              <PieChart>
+                <Pie
+                  data={byDiff}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={70}
+                  label={({ name, value }) => `${name}: ${value}`}
+                  labelLine={false}
+                >
+                  {byDiff.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+                <ChartTooltip formatter={(v, name) => [`${v} peaks`, name]} />
+              </PieChart>
+            </ResponsiveContainer>
+          </Paper>
+        )}
+      </Stack>
+    </Stack>
   );
 }
 
@@ -297,6 +481,7 @@ export default function ProfilePage() {
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: "divider", px: 2 }}>
             <Tab label={`Summits${stats ? ` (${stats.totalSummits})` : ""}`} />
             <Tab label={`Saved${stats ? ` (${stats.savedMountains})` : ""}`} />
+            <Tab label="Stats" />
             <Tab label={`Achievements${earnedCount > 0 ? ` (${earnedCount})` : ""}`} />
           </Tabs>
 
@@ -379,8 +564,13 @@ export default function ProfilePage() {
               </>
             )}
 
-            {/* ── Tab 2: Achievements ── */}
+            {/* ── Tab 2: Stats ── */}
             {tab === 2 && (
+              <StatsTab completions={completions ?? []} />
+            )}
+
+            {/* ── Tab 3: Achievements ── */}
+            {tab === 3 && (
               <Box>
                 {earnedCount === 0 && (
                   <Typography color="text.secondary" variant="body2" mb={2.5}>

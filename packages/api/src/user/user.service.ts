@@ -155,6 +155,45 @@ export const userService = {
     });
   },
 
+  async getPublicProfile(userId: string) {
+    const [user, completions, achievements] = await Promise.all([
+      prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { id: true, name: true, email: true, createdAt: true },
+      }),
+      prisma.completion.findMany({
+        where: { userId, isPrivate: false },
+        orderBy: { completedAt: "desc" },
+        include: {
+          mountain: { select: { id: true, name: true, altitude: true, difficulty: true, range: true } },
+          trail: { select: { name: true } },
+        },
+      }),
+      prisma.userAchievement.findMany({
+        where: { userId },
+        orderBy: { unlockedAt: "asc" },
+      }),
+    ]);
+
+    const uniqueMountainIds = new Set(completions.map((c) => c.mountainId));
+    const totalElevationGained = completions.reduce((sum, c) => sum + (c.mountain.altitude ?? 0), 0);
+    const highestPeak = completions.reduce((max, c) => Math.max(max, c.mountain.altitude), 0);
+    const rangesCovered = new Set(completions.map((c) => c.mountain.range)).size;
+
+    return {
+      user,
+      stats: {
+        totalSummits: completions.length,
+        uniqueMountains: uniqueMountainIds.size,
+        totalElevationGained,
+        highestPeak,
+        rangesCovered,
+      },
+      recentCompletions: completions.slice(0, 20),
+      achievements,
+    };
+  },
+
   async updateCompletion(
     userId: string,
     id: string,

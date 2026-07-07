@@ -33,6 +33,8 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import AcUnitIcon from "@mui/icons-material/AcUnit";
 import AirIcon from "@mui/icons-material/Air";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import ArticleIcon from "@mui/icons-material/Article";
 import CloudIcon from "@mui/icons-material/Cloud";
 import ThunderstormIcon from "@mui/icons-material/Thunderstorm";
 import WaterDropIcon from "@mui/icons-material/WaterDrop";
@@ -987,6 +989,15 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
     { enabled: !!accessToken && !!id }
   );
 
+  const { data: nearbyPeaks } = trpc.mountain.nearby.useQuery(
+    { mountainId: id },
+    { enabled: !!id }
+  );
+  const { data: conditions } = trpc.mountain.recentConditions.useQuery(
+    { mountainId: id },
+    { enabled: !!id }
+  );
+
   const deleteTrailMutation = trpc.trail.delete.useMutation({
     onSuccess: () => utils.mountain.getBySlug.invalidate({ slug }),
   });
@@ -1343,6 +1354,81 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                   </Button>
                 )}
               </>
+            )}
+
+            {/* Recent Conditions */}
+            {conditions && conditions.length > 0 && (
+              <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
+                  <ArticleIcon sx={{ fontSize: "1.1rem", color: "info.main" }} />
+                  <Typography variant="subtitle2" fontWeight={700}>Recent Conditions</Typography>
+                </Stack>
+                <Stack divider={<Divider />} spacing={0}>
+                  {conditions.map((c) => (
+                    <Box key={c.id} sx={{ py: 1.25 }}>
+                      <Stack direction="row" spacing={0.75} alignItems="center" mb={0.5}>
+                        <Avatar sx={{ width: 22, height: 22, fontSize: 10, bgcolor: "primary.light" }}>
+                          {(c.user.name ?? c.user.email).slice(0, 2).toUpperCase()}
+                        </Avatar>
+                        <Typography
+                          component={NextLink}
+                          href={`/users/${c.user.id}`}
+                          variant="caption"
+                          fontWeight={600}
+                          sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                        >
+                          {c.user.name ?? c.user.email.split("@")[0]}
+                        </Typography>
+                        {c.rating !== null && (
+                          <Rating value={c.rating} readOnly size="small" sx={{ "& svg": { fontSize: "0.75rem" } }} />
+                        )}
+                        <Typography variant="caption" color="text.disabled" ml="auto !important">
+                          {new Date(c.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </Typography>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                        {c.text}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Paper>
+            )}
+
+            {/* Nearby Peaks */}
+            {nearbyPeaks && nearbyPeaks.length > 0 && (
+              <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={700} mb={1.5}>Nearby Peaks</Typography>
+                <Stack spacing={0} divider={<Divider />}>
+                  {nearbyPeaks.map((p) => (
+                    <Box
+                      key={p.id}
+                      component={NextLink}
+                      href={`/mountains/${p.slug}`}
+                      sx={{
+                        py: 1.25,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        textDecoration: "none",
+                        color: "inherit",
+                        "&:hover .nearby-name": { color: "primary.main" },
+                      }}
+                    >
+                      <TerrainIcon sx={{ fontSize: "1rem", color: "text.disabled", flexShrink: 0 }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography className="nearby-name" variant="body2" fontWeight={600} noWrap sx={{ transition: "color 0.15s" }}>
+                          {p.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {p.altitude.toLocaleString()} ft · {p.distanceMiles.toFixed(1)} mi away
+                        </Typography>
+                      </Box>
+                      <ArrowForwardIcon sx={{ fontSize: "0.9rem", color: "text.disabled", flexShrink: 0 }} />
+                    </Box>
+                  ))}
+                </Stack>
+              </Paper>
             )}
           </Grid>
         </Grid>

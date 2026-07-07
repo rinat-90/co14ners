@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import NextLink from "next/link";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
@@ -10,9 +11,12 @@ import Paper from "@mui/material/Paper";
 import Rating from "@mui/material/Rating";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import DynamicFeedIcon from "@mui/icons-material/DynamicFeed";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import StarIcon from "@mui/icons-material/Star";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import AppHeader from "@/components/AppHeader";
@@ -40,7 +44,76 @@ function displayName(name: string | null | undefined, email: string) {
   return name ?? email.split("@")[0];
 }
 
+const RANK_MEDALS = ["🥇", "🥈", "🥉"];
+
+function LeaderboardPanel() {
+  const { data: board, isLoading } = trpc.feed.leaderboard.useQuery();
+
+  return (
+    <Paper variant="outlined" sx={{ borderRadius: 3, overflow: "hidden" }}>
+      {isLoading
+        ? Array.from({ length: 5 }).map((_, i) => (
+            <Box key={i} sx={{ p: 2, borderBottom: "1px solid", borderColor: "divider" }}>
+              <Stack direction="row" spacing={1.5} alignItems="center">
+                <Skeleton variant="circular" width={36} height={36} />
+                <Box sx={{ flex: 1 }}>
+                  <Skeleton variant="text" width="40%" />
+                  <Skeleton variant="text" width="25%" />
+                </Box>
+              </Stack>
+            </Box>
+          ))
+        : board?.map((entry) => (
+            <Box
+              key={entry.userId}
+              component={NextLink}
+              href={`/users/${entry.userId}`}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 2,
+                px: 2.5,
+                py: 2,
+                textDecoration: "none",
+                color: "inherit",
+                borderBottom: "1px solid",
+                borderColor: "divider",
+                "&:last-child": { borderBottom: "none" },
+                "&:hover": { bgcolor: "action.hover" },
+                ...(entry.rank <= 3 && { bgcolor: entry.rank === 1 ? "warning.50" : "transparent" }),
+              }}
+            >
+              <Typography sx={{ fontSize: entry.rank <= 3 ? "1.4rem" : "1rem", minWidth: 32, textAlign: "center", fontWeight: 700, color: "text.secondary" }}>
+                {entry.rank <= 3 ? RANK_MEDALS[entry.rank - 1] : `#${entry.rank}`}
+              </Typography>
+              <Avatar sx={{ width: 36, height: 36, fontSize: 13, fontWeight: 700, bgcolor: "primary.main" }}>
+                {entry.name.slice(0, 2).toUpperCase()}
+              </Avatar>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" fontWeight={700} noWrap>{entry.name}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Highest: {entry.highestPeak.toLocaleString()} ft
+                </Typography>
+              </Box>
+              <Stack alignItems="flex-end">
+                <Typography variant="h6" fontWeight={800} color="primary.main" sx={{ lineHeight: 1, fontSize: "1.1rem" }}>
+                  {entry.uniquePeaks}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">peaks</Typography>
+              </Stack>
+            </Box>
+          ))}
+      {!isLoading && (!board || board.length === 0) && (
+        <Box sx={{ p: 4, textAlign: "center" }}>
+          <Typography color="text.secondary">No summit data yet.</Typography>
+        </Box>
+      )}
+    </Paper>
+  );
+}
+
 export default function FeedPage() {
+  const [tab, setTab] = useState(0);
   const { data: events, isLoading } = trpc.feed.list.useQuery({ limit: 30 });
 
   return (
@@ -51,12 +124,19 @@ export default function FeedPage() {
         <Stack direction="row" spacing={1.5} alignItems="center" mb={3}>
           <DynamicFeedIcon color="primary" />
           <Box>
-            <Typography variant="h5" fontWeight={700}>Activity Feed</Typography>
-            <Typography variant="body2" color="text.secondary">Recent summits and reviews from the community</Typography>
+            <Typography variant="h5" fontWeight={700}>Community</Typography>
+            <Typography variant="body2" color="text.secondary">Recent activity and top summiteers</Typography>
           </Box>
         </Stack>
 
-        {isLoading ? (
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}>
+          <Tab icon={<DynamicFeedIcon fontSize="small" />} iconPosition="start" label="Activity" />
+          <Tab icon={<LeaderboardIcon fontSize="small" />} iconPosition="start" label="Leaderboard" />
+        </Tabs>
+
+        {tab === 1 && <LeaderboardPanel />}
+
+        {tab === 0 && (isLoading ? (
           <Stack spacing={2}>
             {[0, 1, 2, 3, 4].map((i) => (
               <Paper key={i} variant="outlined" sx={{ p: 2.5, borderRadius: 3 }}>
@@ -104,7 +184,13 @@ export default function FeedPage() {
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     {/* Header row */}
                     <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap mb={0.5}>
-                      <Typography variant="body2" fontWeight={700}>
+                      <Typography
+                        component={NextLink}
+                        href={`/users/${event.user.id}`}
+                        variant="body2"
+                        fontWeight={700}
+                        sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                      >
                         {displayName(event.user.name, event.user.email)}
                       </Typography>
                       {event.type === "summit" ? (
@@ -161,7 +247,7 @@ export default function FeedPage() {
               </Box>
             ))}
           </Stack>
-        )}
+        ))}
       </Box>
     </Box>
   );
