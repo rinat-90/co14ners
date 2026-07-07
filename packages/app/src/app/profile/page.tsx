@@ -23,10 +23,12 @@ import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import Tooltip from "@mui/material/Tooltip";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import FavoriteIcon from "@mui/icons-material/Favorite";
+import LockIcon from "@mui/icons-material/Lock";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MapIcon from "@mui/icons-material/Map";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -138,6 +140,24 @@ function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
   );
 }
 
+// ── Achievement metadata ────────────────────────────────────────────────────────
+
+const ALL_ACHIEVEMENTS = [
+  { type: "FIRST_SUMMIT",               label: "First Summit",         desc: "Log your first summit",                    icon: <EmojiEventsIcon />, color: "#f59e0b" },
+  { type: "TEN_SUMMITS",                label: "Ten Peaks",            desc: "Summit 10 unique mountains",               icon: <TerrainIcon />,     color: "#3b82f6" },
+  { type: "TWENTY_FIVE_SUMMITS",        label: "Quarter Century",      desc: "Summit 25 unique mountains",               icon: <TerrainIcon />,     color: "#8b5cf6" },
+  { type: "ALL_58",                     label: "Complete Bagger",      desc: "Summit all 58 Colorado 14ers!",            icon: <EmojiEventsIcon />, color: "#f59e0b" },
+  { type: "HIGHEST_PEAK",               label: "Top of Colorado",      desc: "Summit Mount Elbert (14,440 ft)",          icon: <TerrainIcon />,     color: "#10b981" },
+  { type: "CLASS_4_CLIMBER",            label: "Class 4 Climber",      desc: "Summit a Class 4 mountain",               icon: <TrendingUpIcon />,  color: "#f97316" },
+  { type: "CLASS_5_CLIMBER",            label: "Technical Climber",    desc: "Summit a Class 5 mountain",               icon: <TrendingUpIcon />,  color: "#ef4444" },
+  { type: "SAWATCH_COMPLETE",           label: "Sawatch Sweeper",      desc: "Complete all Sawatch Range peaks",         icon: <MapIcon />,         color: "#10b981" },
+  { type: "ELK_COMPLETE",               label: "Elk Crusher",          desc: "Complete all Elk Mountains peaks",         icon: <MapIcon />,         color: "#10b981" },
+  { type: "SAN_JUAN_COMPLETE",          label: "San Juan Slayer",      desc: "Complete all San Juan peaks",             icon: <MapIcon />,         color: "#10b981" },
+  { type: "SANGRE_DE_CRISTO_COMPLETE",  label: "Sangre Conqueror",     desc: "Complete all Sangre de Cristo peaks",      icon: <MapIcon />,         color: "#10b981" },
+  { type: "FRONT_COMPLETE",             label: "Front Runner",         desc: "Complete all Front Range peaks",          icon: <MapIcon />,         color: "#10b981" },
+  { type: "TENMILE_MOSQUITO_COMPLETE",  label: "Tenmile Trekker",      desc: "Complete all Tenmile/Mosquito peaks",     icon: <MapIcon />,         color: "#10b981" },
+] as const;
+
 // ── Profile page ───────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
@@ -152,6 +172,10 @@ export default function ProfilePage() {
   const { data: stats, isLoading: statsLoading } = trpc.user.stats.useQuery(undefined, { enabled: !!accessToken });
   const { data: completions, isLoading: completionsLoading } = trpc.user.completions.useQuery(undefined, { enabled: !!accessToken });
   const { data: favorites, isLoading: favoritesLoading } = trpc.user.favorites.useQuery(undefined, { enabled: !!accessToken });
+  const { data: achievements } = trpc.user.achievements.useQuery(undefined, { enabled: !!accessToken });
+
+  const earnedTypes = new Set(achievements?.map((a) => a.type) ?? []);
+  const earnedCount = earnedTypes.size;
 
   const deleteMutation = trpc.user.deleteCompletion.useMutation({
     onSuccess: () => utils.user.completions.invalidate(),
@@ -273,6 +297,7 @@ export default function ProfilePage() {
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: "divider", px: 2 }}>
             <Tab label={`Summits${stats ? ` (${stats.totalSummits})` : ""}`} />
             <Tab label={`Saved${stats ? ` (${stats.savedMountains})` : ""}`} />
+            <Tab label={`Achievements${earnedCount > 0 ? ` (${earnedCount})` : ""}`} />
           </Tabs>
 
           <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -352,6 +377,62 @@ export default function ProfilePage() {
                   </Stack>
                 )}
               </>
+            )}
+
+            {/* ── Tab 2: Achievements ── */}
+            {tab === 2 && (
+              <Box>
+                {earnedCount === 0 && (
+                  <Typography color="text.secondary" variant="body2" mb={2.5}>
+                    Log summits to unlock achievements!
+                  </Typography>
+                )}
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)", md: "repeat(4, 1fr)" },
+                    gap: 2,
+                  }}
+                >
+                  {ALL_ACHIEVEMENTS.map((a) => {
+                    const unlocked = earnedTypes.has(a.type);
+                    const unlockedAt = achievements?.find((u) => u.type === a.type)?.unlockedAt;
+                    return (
+                      <Tooltip
+                        key={a.type}
+                        title={unlocked ? (unlockedAt ? `Unlocked ${fmtDate(unlockedAt)}` : "Unlocked!") : a.desc}
+                        arrow
+                      >
+                        <Paper
+                          variant="outlined"
+                          sx={{
+                            p: { xs: 1.5, md: 2 },
+                            borderRadius: 2,
+                            textAlign: "center",
+                            cursor: "default",
+                            filter: unlocked ? "none" : "grayscale(1)",
+                            opacity: unlocked ? 1 : 0.45,
+                            borderColor: unlocked ? a.color : undefined,
+                            transition: "opacity 0.2s",
+                          }}
+                        >
+                          <Box sx={{ fontSize: "1.75rem", color: unlocked ? a.color : "text.disabled", mb: 0.5 }}>
+                            {unlocked ? a.icon : <LockIcon sx={{ fontSize: "1.5rem" }} />}
+                          </Box>
+                          <Typography variant="caption" fontWeight={unlocked ? 700 : 400} display="block" lineHeight={1.2}>
+                            {a.label}
+                          </Typography>
+                          {unlocked && (
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.65rem" }}>
+                              ✓ Earned
+                            </Typography>
+                          )}
+                        </Paper>
+                      </Tooltip>
+                    );
+                  })}
+                </Box>
+              </Box>
             )}
 
             {/* ── Tab 1: Saved ── */}

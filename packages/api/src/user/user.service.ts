@@ -1,6 +1,10 @@
 import bcrypt from "bcryptjs";
 import { TRPCError } from "@trpc/server";
+import type { AchievementType } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+
+// Mount Elbert is the highest Colorado 14er at 14,440 ft
+const ELBERT_NAME = "Mount Elbert";
 
 export const userService = {
   async getProfile(userId: string) {
@@ -74,7 +78,7 @@ export const userService = {
     userId: string,
     data: { mountainId: string; completedAt: string; notes?: string; trailId?: string; isPrivate: boolean }
   ) {
-    return prisma.completion.create({
+    const completion = await prisma.completion.create({
       data: {
         userId,
         mountainId: data.mountainId,
@@ -83,6 +87,71 @@ export const userService = {
         trailId: data.trailId,
         isPrivate: data.isPrivate,
       },
+    });
+    const newAchievements = await userService.checkAndUnlockAchievements(userId);
+    return { completion, newAchievements };
+  },
+
+  async checkAndUnlockAchievements(userId: string) {
+    const [completions, existing] = await Promise.all([
+      prisma.completion.findMany({
+        where: { userId },
+        include: {
+          mountain: { select: { name: true, difficulty: true, range: true, altitude: true } },
+        },
+      }),
+      prisma.userAchievement.findMany({ where: { userId }, select: { type: true } }),
+    ]);
+
+    const earned = new Set(existing.map((a) => a.type));
+    const uniqueMountainIds = new Set(completions.map((c) => c.mountainId));
+    const toUnlock: AchievementType[] = [];
+
+    const check = (type: AchievementType, condition: boolean) => {
+      if (condition && !earned.has(type)) toUnlock.push(type);
+    };
+
+    check("FIRST_SUMMIT", uniqueMountainIds.size >= 1);
+    check("TEN_SUMMITS", uniqueMountainIds.size >= 10);
+    check("TWENTY_FIVE_SUMMITS", uniqueMountainIds.size >= 25);
+    check("ALL_58", uniqueMountainIds.size >= 58);
+
+    const rangeCompletions = (range: string) =>
+      new Set(completions.filter((c) => c.mountain.range === range).map((c) => c.mountainId)).size;
+
+    // Get range totals from the mountain table
+    const rangeCounts = await prisma.mountain.groupBy({
+      by: ["range"],
+      _count: { _all: true },
+    });
+    const rangeTotal = (range: string) =>
+      rangeCounts.find((r) => r.range === range)?._count._all ?? 0;
+
+    check("SAWATCH_COMPLETE", rangeCompletions("SAWATCH") >= rangeTotal("SAWATCH") && rangeTotal("SAWATCH") > 0);
+    check("ELK_COMPLETE", rangeCompletions("ELK") >= rangeTotal("ELK") && rangeTotal("ELK") > 0);
+    check("SAN_JUAN_COMPLETE", rangeCompletions("SAN_JUAN") >= rangeTotal("SAN_JUAN") && rangeTotal("SAN_JUAN") > 0);
+    check("SANGRE_DE_CRISTO_COMPLETE", rangeCompletions("SANGRE_DE_CRISTO") >= rangeTotal("SANGRE_DE_CRISTO") && rangeTotal("SANGRE_DE_CRISTO") > 0);
+    check("FRONT_COMPLETE", rangeCompletions("FRONT") >= rangeTotal("FRONT") && rangeTotal("FRONT") > 0);
+    check("TENMILE_MOSQUITO_COMPLETE", rangeCompletions("TENMILE_MOSQUITO") >= rangeTotal("TENMILE_MOSQUITO") && rangeTotal("TENMILE_MOSQUITO") > 0);
+
+    check("CLASS_4_CLIMBER", completions.some((c) => c.mountain.difficulty === "CLASS_4" || c.mountain.difficulty === "CLASS_5"));
+    check("CLASS_5_CLIMBER", completions.some((c) => c.mountain.difficulty === "CLASS_5"));
+    check("HIGHEST_PEAK", completions.some((c) => c.mountain.name === ELBERT_NAME));
+
+    if (toUnlock.length === 0) return [];
+
+    await prisma.userAchievement.createMany({
+      data: toUnlock.map((type) => ({ userId, type })),
+      skipDuplicates: true,
+    });
+
+    return toUnlock;
+  },
+
+  async getAchievements(userId: string) {
+    return prisma.userAchievement.findMany({
+      where: { userId },
+      orderBy: { unlockedAt: "desc" },
     });
   },
 

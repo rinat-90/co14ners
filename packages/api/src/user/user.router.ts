@@ -54,4 +54,6 @@ export const userRouter = router({
   updatePassword: protectedProcedure
     .input(updatePasswordSchema)
     .mutation(({ ctx, input }) => userService.updatePassword(ctx.user.id, input.currentPassword, input.newPassword)),
+
+  achievements: protectedProcedure.query(({ ctx }) => userService.getAchievements(ctx.user.id)),
 });

@@ -26,9 +26,19 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
+import Alert from "@mui/material/Alert";
+import Snackbar from "@mui/material/Snackbar";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import AcUnitIcon from "@mui/icons-material/AcUnit";
+import AirIcon from "@mui/icons-material/Air";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CloudIcon from "@mui/icons-material/Cloud";
+import ThunderstormIcon from "@mui/icons-material/Thunderstorm";
+import WaterDropIcon from "@mui/icons-material/WaterDrop";
+import WbSunnyIcon from "@mui/icons-material/WbSunny";
+import WbCloudyIcon from "@mui/icons-material/WbCloudy";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import BookmarkAddIcon from "@mui/icons-material/BookmarkAdd";
 import BookmarkAddedIcon from "@mui/icons-material/BookmarkAdded";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -81,6 +91,7 @@ function LogSummitDialog({
   mountainName,
   trails,
   hasExistingReview,
+  onAchievements,
 }: {
   open: boolean;
   onClose: () => void;
@@ -89,6 +100,7 @@ function LogSummitDialog({
   mountainName: string;
   trails: { id: string; name: string }[];
   hasExistingReview: boolean;
+  onAchievements: (types: string[]) => void;
 }) {
   const utils = trpc.useUtils();
   const today = new Date().toISOString().slice(0, 10);
@@ -106,7 +118,7 @@ function LogSummitDialog({
     setReviewBody("");
   };
 
-  const invalidate = () => {
+  const invalidate = (newAchievements: string[] = []) => {
     utils.user.stats.invalidate();
     utils.user.completions.invalidate();
     utils.user.myCompletion.invalidate({ mountainId });
@@ -114,13 +126,18 @@ function LogSummitDialog({
     utils.mountain.globalStats.invalidate();
     utils.review.list.invalidate({ mountainId });
     utils.review.myReview.invalidate({ mountainId });
+    utils.user.achievements.invalidate();
+    utils.recommendation.get.invalidate();
+    if (newAchievements.length > 0) onAchievements(newAchievements);
     reset();
     onClose();
   };
 
   const logMutation = trpc.user.logSummit.useMutation();
-  const reviewMutation = trpc.review.add.useMutation({ onSuccess: invalidate });
-  const logOnlyMutation = trpc.user.logSummit.useMutation({ onSuccess: invalidate });
+  const reviewMutation = trpc.review.add.useMutation({ onSuccess: () => invalidate() });
+  const logOnlyMutation = trpc.user.logSummit.useMutation({
+    onSuccess: (data) => invalidate(data.newAchievements),
+  });
 
   const isPending = logMutation.isPending || reviewMutation.isPending || logOnlyMutation.isPending;
   const canSubmit = !!date && (hasExistingReview || (!!rating && reviewBody.trim().length > 0));
@@ -142,14 +159,17 @@ function LogSummitDialog({
           isPrivate: false,
         },
         {
-          onSuccess: () => {
-            reviewMutation.mutate({
-              mountainId,
-              rating: rating!,
-              title: reviewTitle || undefined,
-              body: reviewBody,
-              hikedAt: new Date(date).toISOString(),
-            });
+          onSuccess: (data) => {
+            reviewMutation.mutate(
+              {
+                mountainId,
+                rating: rating!,
+                title: reviewTitle || undefined,
+                body: reviewBody,
+                hikedAt: new Date(date).toISOString(),
+              },
+              { onSuccess: () => invalidate(data.newAchievements) }
+            );
           },
         }
       );
@@ -810,6 +830,115 @@ function EditTrailDialog({
   );
 }
 
+// ── Weather forecast ───────────────────────────────────────────────────────────
+
+const WEATHER_ICONS: Record<string, React.ReactNode> = {
+  "clear": <WbSunnyIcon sx={{ color: "#f59e0b" }} />,
+  "partly-cloudy": <WbCloudyIcon sx={{ color: "#94a3b8" }} />,
+  "cloudy": <CloudIcon sx={{ color: "#64748b" }} />,
+  "rain": <WaterDropIcon sx={{ color: "#3b82f6" }} />,
+  "snow": <AcUnitIcon sx={{ color: "#7dd3fc" }} />,
+  "thunderstorm": <ThunderstormIcon sx={{ color: "#8b5cf6" }} />,
+};
+
+function WeatherSection({ latitude, longitude }: { latitude: number; longitude: number }) {
+  const { data: forecast, isLoading } = trpc.weather.getForecast.useQuery({ latitude, longitude });
+
+  const hasMonsoonRisk = forecast?.some((d) => d.precipChance > 60) ?? false;
+
+  return (
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 3 }}>
+      <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+        <WbSunnyIcon sx={{ color: "warning.main", fontSize: "1.2rem" }} />
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>
+          Summit Forecast
+        </Typography>
+        <Typography variant="caption" color="text.secondary">(3-day, Denver time)</Typography>
+      </Stack>
+
+      {hasMonsoonRisk && (
+        <Stack direction="row" spacing={1} alignItems="center" mb={2} sx={{ p: 1.5, bgcolor: "warning.50", borderRadius: 2, border: "1px solid", borderColor: "warning.200" }}>
+          <WarningAmberIcon sx={{ color: "warning.main", fontSize: "1rem" }} />
+          <Typography variant="caption" color="warning.dark" fontWeight={600}>
+            Afternoon thunderstorms likely — plan to summit before noon
+          </Typography>
+        </Stack>
+      )}
+
+      {isLoading ? (
+        <Stack direction="row" spacing={2}>
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} variant="rounded" height={120} sx={{ flex: 1, borderRadius: 2 }} />
+          ))}
+        </Stack>
+      ) : forecast && forecast.length > 0 ? (
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+          {forecast.map((day) => (
+            <Paper
+              key={day.date}
+              variant="outlined"
+              sx={{
+                flex: 1,
+                p: { xs: 1.5, md: 2 },
+                borderRadius: 2,
+                textAlign: "center",
+                position: "relative",
+                ...(day.isBestDay && {
+                  borderColor: "success.main",
+                  bgcolor: "success.50",
+                }),
+              }}
+            >
+              {day.isBestDay && (
+                <Chip
+                  label="Best day"
+                  size="small"
+                  sx={{
+                    position: "absolute",
+                    top: -10,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    bgcolor: "success.main",
+                    color: "white",
+                    fontWeight: 700,
+                    fontSize: "0.65rem",
+                    height: 20,
+                  }}
+                />
+              )}
+              <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                {new Date(day.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+              </Typography>
+              <Box sx={{ fontSize: "1.75rem", lineHeight: 1, mb: 0.5 }}>
+                {WEATHER_ICONS[day.icon] ?? <CloudIcon />}
+              </Box>
+              <Typography variant="caption" color="text.secondary" display="block" mb={1} sx={{ fontSize: "0.7rem" }}>
+                {day.condition}
+              </Typography>
+              <Stack direction="row" justifyContent="center" spacing={0.5} mb={0.75}>
+                <Typography variant="body2" fontWeight={700}>{day.tempMax}°</Typography>
+                <Typography variant="body2" color="text.secondary">/ {day.tempMin}°F</Typography>
+              </Stack>
+              <Stack direction="row" justifyContent="center" spacing={1.5}>
+                <Stack direction="row" spacing={0.25} alignItems="center">
+                  <WaterDropIcon sx={{ fontSize: "0.75rem", color: "info.main" }} />
+                  <Typography variant="caption" color="text.secondary">{day.precipChance}%</Typography>
+                </Stack>
+                <Stack direction="row" spacing={0.25} alignItems="center">
+                  <AirIcon sx={{ fontSize: "0.75rem", color: "text.secondary" }} />
+                  <Typography variant="caption" color="text.secondary">{day.windMax} mph</Typography>
+                </Stack>
+              </Stack>
+            </Paper>
+          ))}
+        </Stack>
+      ) : (
+        <Typography variant="body2" color="text.secondary">Forecast unavailable.</Typography>
+      )}
+    </Paper>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 function toSlug(name: string) {
@@ -824,6 +953,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
   const [uploadOpen, setUploadOpen] = useState(false);
   const [editingTrail, setEditingTrail] = useState<TrailForEdit | null>(null);
   const [selectedTrailId, setSelectedTrailId] = useState<string>("");
+  const [achievementToast, setAchievementToast] = useState<string[]>([]);
 
   const utils = trpc.useUtils();
   const { data: mountain, isLoading, isError } = trpc.mountain.getBySlug.useQuery({ slug });
@@ -998,6 +1128,11 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
             </>
           )}
         </Stack>
+
+        {/* Weather Forecast */}
+        {!isLoading && mountain && (
+          <WeatherSection latitude={mountain.latitude} longitude={mountain.longitude} />
+        )}
 
         <Grid container spacing={3}>
           {/* Main column */}
@@ -1224,8 +1359,31 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
           mountainName={mountain.name}
           trails={trails.map((t) => ({ id: t.id, name: t.name }))}
           hasExistingReview={!!myReview}
+          onAchievements={setAchievementToast}
         />
       )}
+
+      <Snackbar
+        open={achievementToast.length > 0}
+        autoHideDuration={5000}
+        onClose={() => setAchievementToast([])}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setAchievementToast([])}
+          severity="success"
+          variant="filled"
+          icon={<EmojiEventsIcon />}
+          sx={{ minWidth: 280, borderRadius: 2 }}
+        >
+          <Typography variant="body2" fontWeight={700}>Achievement Unlocked!</Typography>
+          {achievementToast.map((t) => (
+            <Typography key={t} variant="caption" display="block">
+              🏔️ {t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+            </Typography>
+          ))}
+        </Alert>
+      </Snackbar>
 
       {mountain && isAdmin && (
         <UploadTrailDialog

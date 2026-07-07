@@ -19,6 +19,22 @@ enum Role {
   ADMIN
 }
 
+enum AchievementType {
+  FIRST_SUMMIT
+  TEN_SUMMITS
+  TWENTY_FIVE_SUMMITS
+  ALL_58
+  SAWATCH_COMPLETE
+  ELK_COMPLETE
+  SAN_JUAN_COMPLETE
+  SANGRE_DE_CRISTO_COMPLETE
+  FRONT_COMPLETE
+  TENMILE_MOSQUITO_COMPLETE
+  CLASS_4_CLIMBER
+  CLASS_5_CLIMBER
+  HIGHEST_PEAK
+}
+
 /// Yosemite Decimal System class used for Colorado 14er routes
 enum Difficulty {
   CLASS_1 // Well-maintained trail, no scrambling
@@ -57,6 +73,19 @@ model User {
   favorites     Favorite[]
   completions   Completion[]
   refreshTokens RefreshToken[]
+  achievements  UserAchievement[]
+}
+
+/// Auto-unlocked badges earned by user activity
+model UserAchievement {
+  id         String          @id @default(cuid())
+  userId     String
+  type       AchievementType
+  unlockedAt DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
 }
 
 /// Stored refresh tokens — deleted on logout, rotated on refresh

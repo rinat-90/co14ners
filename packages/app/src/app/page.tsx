@@ -6,17 +6,27 @@ import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
+import Chip from "@mui/material/Chip";
+import Skeleton from "@mui/material/Skeleton";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import ExploreIcon from "@mui/icons-material/Explore";
+import LightbulbIcon from "@mui/icons-material/Lightbulb";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import AppHeader from "@/components/AppHeader";
+import DifficultyChip from "@/components/mountains/DifficultyChip";
+import RangeLabel from "@/components/mountains/RangeLabel";
 
 export default function HomePage() {
   const { user } = useAuth();
 
   const { data: stats } = trpc.mountain.globalStats.useQuery();
+  const { data: recommendations, isLoading: recsLoading } = trpc.recommendation.get.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
@@ -51,6 +61,7 @@ export default function HomePage() {
         </Button>
       </Box>
 
+      {/* Global stats */}
       <Box sx={{ maxWidth: 800, mx: "auto", px: { xs: 2, md: 4 }, py: 6 }}>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={3}>
           <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, flex: 1, textAlign: "center" }}>
@@ -87,6 +98,101 @@ export default function HomePage() {
           </Paper>
         </Stack>
       </Box>
+
+      {/* Recommendations — only shown when logged in */}
+      {user && (
+        <Box sx={{ maxWidth: 900, mx: "auto", px: { xs: 2, md: 4 }, pb: 8 }}>
+          <Stack direction="row" alignItems="center" spacing={1} mb={2.5}>
+            <LightbulbIcon sx={{ color: "warning.main" }} />
+            <Typography variant="h6" fontWeight={700}>
+              Peaks to Try Next
+            </Typography>
+          </Stack>
+
+          {recsLoading ? (
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
+                gap: 2,
+              }}
+            >
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} variant="rounded" height={160} sx={{ borderRadius: 3 }} />
+              ))}
+            </Box>
+          ) : recommendations && recommendations.length > 0 ? (
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
+                gap: 2,
+              }}
+            >
+              {recommendations.map((rec) => (
+                <Paper
+                  key={rec.id}
+                  component={NextLink}
+                  href={`/mountains/${rec.slug}`}
+                  variant="outlined"
+                  sx={{
+                    p: 2.5,
+                    borderRadius: 3,
+                    textDecoration: "none",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 1,
+                    transition: "box-shadow 0.15s, border-color 0.15s",
+                    "&:hover": {
+                      boxShadow: 3,
+                      borderColor: "primary.main",
+                    },
+                  }}
+                >
+                  <Chip
+                    label={rec.reason}
+                    size="small"
+                    sx={{
+                      alignSelf: "flex-start",
+                      bgcolor: "warning.main",
+                      color: "warning.contrastText",
+                      fontWeight: 600,
+                      fontSize: "0.7rem",
+                    }}
+                  />
+                  <Typography variant="subtitle1" fontWeight={700} color="text.primary" lineHeight={1.2}>
+                    {rec.name}
+                  </Typography>
+                  <RangeLabel range={rec.range} sx={{ fontSize: "0.78rem" }} />
+                  <Stack direction="row" spacing={1} alignItems="center" mt={0.5}>
+                    <DifficultyChip difficulty={rec.difficulty} size="small" />
+                    <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                      {rec.altitude.toLocaleString()} ft
+                    </Typography>
+                  </Stack>
+                  {rec.roundTripMiles && (
+                    <Typography variant="caption" color="text.secondary">
+                      {rec.roundTripMiles} mi · {rec.elevationGain ? `+${rec.elevationGain.toLocaleString()} ft gain` : ""}
+                    </Typography>
+                  )}
+                  <Stack direction="row" justifyContent="flex-end" mt="auto" pt={0.5}>
+                    <ArrowForwardIcon sx={{ fontSize: 16, color: "primary.main" }} />
+                  </Stack>
+                </Paper>
+              ))}
+            </Box>
+          ) : (
+            <Paper variant="outlined" sx={{ p: 3, borderRadius: 3, textAlign: "center" }}>
+              <Typography color="text.secondary">
+                Log your first summit to get personalized recommendations!
+              </Typography>
+              <Button component={NextLink} href="/mountains" size="small" sx={{ mt: 1.5 }}>
+                Browse peaks →
+              </Button>
+            </Paper>
+          )}
+        </Box>
+      )}
     </Box>
   );
 }
