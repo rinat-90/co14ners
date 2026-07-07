@@ -14,9 +14,11 @@ import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import CloseIcon from "@mui/icons-material/Close";
+import DynamicFeedIcon from "@mui/icons-material/DynamicFeed";
 import GetAppIcon from "@mui/icons-material/GetApp";
 import IosShareIcon from "@mui/icons-material/IosShare";
 import LogoutIcon from "@mui/icons-material/Logout";
+import MapIcon from "@mui/icons-material/Map";
 import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
@@ -109,6 +111,24 @@ export default function AppHeader() {
             sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
           >
             14ers
+          </Button>
+          <Button
+            component={NextLink}
+            href="/map"
+            color="inherit"
+            startIcon={<MapIcon />}
+            sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
+          >
+            Map
+          </Button>
+          <Button
+            component={NextLink}
+            href="/feed"
+            color="inherit"
+            startIcon={<DynamicFeedIcon />}
+            sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
+          >
+            Feed
           </Button>
 
           {accessToken ? (
