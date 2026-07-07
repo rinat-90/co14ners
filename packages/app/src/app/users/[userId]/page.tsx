@@ -12,6 +12,7 @@ import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ArticleIcon from "@mui/icons-material/Article";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LockIcon from "@mui/icons-material/Lock";
 import MapIcon from "@mui/icons-material/Map";
@@ -47,6 +48,7 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 export default function PublicProfilePage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = use(params);
   const { data, isLoading, isError } = trpc.user.publicProfile.useQuery({ userId });
+  const { data: tripReports } = trpc.tripReport.byUser.useQuery({ userId }, { enabled: !!userId });
 
   if (isError) {
     return (
@@ -152,6 +154,55 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
                   sx={{ bgcolor: "warning.50", color: "warning.dark", fontWeight: 600, fontSize: "0.7rem" }}
                 />
               ))}
+            </Stack>
+          </Paper>
+        )}
+
+        {/* Trip Reports */}
+        {tripReports && tripReports.length > 0 && (
+          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 3 }}>
+            <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontSize: { xs: "1rem", md: "1.1rem" } }}>
+              Trip Reports ({tripReports.length})
+            </Typography>
+            <Stack divider={<Divider />} spacing={0}>
+              {tripReports.map((r) => {
+                const condColors: Record<string, string> = {
+                  EXCELLENT: "#22c55e", GOOD: "#3b82f6", FAIR: "#f59e0b", POOR: "#ef4444",
+                };
+                return (
+                  <Box key={r.id} sx={{ py: 2 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap mb={0.5}>
+                      <Typography
+                        component={NextLink}
+                        href={`/mountains/${toSlug(r.mountain.name)}`}
+                        variant="body2"
+                        fontWeight={600}
+                        sx={{ textDecoration: "none", color: "primary.main", "&:hover": { textDecoration: "underline" } }}
+                      >
+                        {r.mountain.name}
+                      </Typography>
+                      {r.conditions && (
+                        <Chip
+                          label={r.conditions.charAt(0) + r.conditions.slice(1).toLowerCase()}
+                          size="small"
+                          variant="outlined"
+                          sx={{ height: 18, fontSize: "0.68rem", borderColor: condColors[r.conditions], color: condColors[r.conditions] }}
+                        />
+                      )}
+                      <Typography variant="caption" color="text.disabled">{fmtDate(r.createdAt)}</Typography>
+                    </Stack>
+                    <Stack direction="row" spacing={1} alignItems="flex-start">
+                      <ArticleIcon sx={{ fontSize: "1rem", color: "text.disabled", mt: 0.25, flexShrink: 0 }} />
+                      <Box>
+                        <Typography variant="body2" fontWeight={600}>{r.title}</Typography>
+                        {r.trail && (
+                          <Typography variant="caption" color="text.secondary">via {r.trail.name}</Typography>
+                        )}
+                      </Box>
+                    </Stack>
+                  </Box>
+                );
+              })}
             </Stack>
           </Paper>
         )}

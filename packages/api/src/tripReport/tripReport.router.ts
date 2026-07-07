@@ -79,6 +79,21 @@ export const tripReportRouter = router({
       return { ok: true };
     }),
 
+  // Public reports by a specific user (for public profile page)
+  byUser: publicProcedure
+    .input(z.object({ userId: z.string(), limit: z.number().min(1).max(50).default(10) }))
+    .query(async ({ input }) => {
+      return prisma.tripReport.findMany({
+        where: { userId: input.userId, isPublic: true },
+        orderBy: { createdAt: "desc" },
+        take: input.limit,
+        include: {
+          mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
+          trail: { select: { name: true } },
+        },
+      });
+    }),
+
   // Recent reports for the feed
   recent: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(50).default(20) }))

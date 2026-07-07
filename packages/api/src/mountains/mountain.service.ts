@@ -130,4 +130,43 @@ export const mountainService = {
 
     return items;
   },
+
+  async conditionsSummary(mountainId: string) {
+    const SCORES: Record<string, number> = { EXCELLENT: 4, GOOD: 3, FAIR: 2, POOR: 1 };
+    const LABELS: Record<string, string> = { EXCELLENT: "Excellent", GOOD: "Good", FAIR: "Fair", POOR: "Poor" };
+
+    const reports = await prisma.tripReport.findMany({
+      where: { mountainId, isPublic: true, conditions: { not: null } },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: { conditions: true, createdAt: true },
+    });
+
+    if (reports.length === 0) return null;
+
+    // Weight by recency: most recent = weight 1.0, each step back -0.1 (floor 0.2)
+    let totalWeight = 0;
+    let weightedScore = 0;
+    for (let i = 0; i < reports.length; i++) {
+      const weight = Math.max(0.2, 1.0 - i * 0.1);
+      const score = SCORES[reports[i].conditions!] ?? 0;
+      weightedScore += score * weight;
+      totalWeight += weight;
+    }
+
+    const avg = weightedScore / totalWeight;
+    // Map 1–4 avg back to a label
+    let label: string;
+    if (avg >= 3.5) label = "Excellent";
+    else if (avg >= 2.5) label = "Good";
+    else if (avg >= 1.5) label = "Fair";
+    else label = "Poor";
+
+    return {
+      label,
+      score: Math.round(avg * 10) / 10,
+      count: reports.length,
+      lastUpdated: reports[0].createdAt,
+    };
+  },
 };

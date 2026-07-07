@@ -24,6 +24,7 @@ import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import Tooltip from "@mui/material/Tooltip";
+import ArticleIcon from "@mui/icons-material/Article";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
@@ -357,6 +358,7 @@ export default function ProfilePage() {
   const { data: completions, isLoading: completionsLoading } = trpc.user.completions.useQuery(undefined, { enabled: !!accessToken });
   const { data: favorites, isLoading: favoritesLoading } = trpc.user.favorites.useQuery(undefined, { enabled: !!accessToken });
   const { data: achievements } = trpc.user.achievements.useQuery(undefined, { enabled: !!accessToken });
+  const { data: myReports, isLoading: reportsLoading } = trpc.tripReport.myReports.useQuery(undefined, { enabled: !!accessToken });
 
   const earnedTypes = new Set(achievements?.map((a) => a.type) ?? []);
   const earnedCount = earnedTypes.size;
@@ -483,6 +485,7 @@ export default function ProfilePage() {
             <Tab label={`Saved${stats ? ` (${stats.savedMountains})` : ""}`} />
             <Tab label="Stats" />
             <Tab label={`Achievements${earnedCount > 0 ? ` (${earnedCount})` : ""}`} />
+            <Tab label={`Reports${myReports && myReports.length > 0 ? ` (${myReports.length})` : ""}`} />
           </Tabs>
 
           <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -697,6 +700,71 @@ export default function ProfilePage() {
                       </Grid>
                     ))}
                   </Grid>
+                )}
+              </>
+            )}
+
+            {/* ── Tab 4: Reports ── */}
+            {tab === 4 && (
+              <>
+                {reportsLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} variant="rounded" height={110} sx={{ mb: 2, borderRadius: 2 }} />
+                  ))
+                ) : myReports?.length === 0 ? (
+                  <Box sx={{ textAlign: "center", py: 8 }}>
+                    <ArticleIcon sx={{ fontSize: 64, color: "text.disabled", mb: 2 }} />
+                    <Typography variant="h6" gutterBottom>No trip reports yet</Typography>
+                    <Typography color="text.secondary" mb={3}>
+                      Visit a mountain page and write your first trip report.
+                    </Typography>
+                    <Button variant="contained" component={NextLink} href="/mountains">Browse 14ers</Button>
+                  </Box>
+                ) : (
+                  <Stack divider={<Divider />} spacing={0}>
+                    {myReports?.map((r) => {
+                      const condColors: Record<string, string> = {
+                        EXCELLENT: "#22c55e", GOOD: "#3b82f6", FAIR: "#f59e0b", POOR: "#ef4444",
+                      };
+                      return (
+                        <Box key={r.id} sx={{ py: 2.5 }}>
+                          <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
+                            <ArticleIcon color="primary" sx={{ mt: 0.25, flexShrink: 0 }} />
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap mb={0.25}>
+                                <Typography
+                                  component={NextLink}
+                                  href={`/mountains/${toSlug(r.mountain.name)}`}
+                                  fontWeight={600}
+                                  variant="body2"
+                                  sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                                >
+                                  {r.mountain.name}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {r.mountain.altitude.toLocaleString()} ft
+                                </Typography>
+                                <DifficultyChip difficulty={r.mountain.difficulty} />
+                                {r.conditions && (
+                                  <Chip
+                                    label={r.conditions.charAt(0) + r.conditions.slice(1).toLowerCase()}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ height: 18, fontSize: "0.68rem", borderColor: condColors[r.conditions], color: condColors[r.conditions] }}
+                                  />
+                                )}
+                              </Stack>
+                              <Typography variant="body2" fontWeight={600} mb={0.25}>{r.title}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {fmtDate(r.createdAt)}{r.trail ? ` · via ${r.trail.name}` : ""}
+                                {!r.isPublic && " · Private"}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
                 )}
               </>
             )}

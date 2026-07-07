@@ -26,4 +26,8 @@ export const mountainRouter = router({
   recentConditions: publicProcedure
     .input(z.object({ mountainId: z.string() }))
     .query(({ input }) => mountainService.recentConditions(input.mountainId)),
+
+  conditionsSummary: publicProcedure
+    .input(z.object({ mountainId: z.string() }))
+    .query(({ input }) => mountainService.conditionsSummary(input.mountainId)),
 });

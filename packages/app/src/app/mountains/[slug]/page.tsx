@@ -1255,6 +1255,10 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
     { mountainId: id },
     { enabled: !!id }
   );
+  const { data: conditionsSummary } = trpc.mountain.conditionsSummary.useQuery(
+    { mountainId: id },
+    { enabled: !!id }
+  );
 
   const deleteTrailMutation = trpc.trail.delete.useMutation({
     onSuccess: () => utils.mountain.getBySlug.invalidate({ slug }),
@@ -1324,7 +1328,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
               <Typography variant="h2" fontWeight={700} gutterBottom sx={{ fontSize: { xs: "1.9rem", md: "3.75rem" }, lineHeight: { xs: 1.15, md: 1.2 } }}>
                 {mountain!.name}
               </Typography>
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
                 <Typography variant="h4" fontWeight={800} sx={{ opacity: 0.95, fontSize: { xs: "1.35rem", md: "2.125rem" } }}>
                   {mountain!.altitude.toLocaleString()} ft
                 </Typography>
@@ -1333,6 +1337,21 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                     icon={<EmojiEventsIcon />}
                     label="Summited"
                     sx={{ bgcolor: "rgba(255,255,255,0.2)", color: "white", fontWeight: 600 }}
+                  />
+                )}
+                {conditionsSummary && (
+                  <Chip
+                    label={`Conditions: ${conditionsSummary.label} · ${conditionsSummary.count} report${conditionsSummary.count !== 1 ? "s" : ""}`}
+                    size="small"
+                    sx={{
+                      bgcolor: conditionsSummary.label === "Excellent" ? "rgba(34,197,94,0.25)"
+                        : conditionsSummary.label === "Good" ? "rgba(59,130,246,0.25)"
+                        : conditionsSummary.label === "Fair" ? "rgba(245,158,11,0.25)"
+                        : "rgba(239,68,68,0.25)",
+                      color: "white",
+                      fontWeight: 600,
+                      fontSize: "0.72rem",
+                    }}
                   />
                 )}
               </Stack>
