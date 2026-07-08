@@ -75,6 +75,8 @@ model User {
   refreshTokens RefreshToken[]
   achievements  UserAchievement[]
   tripReports   TripReport[]
+  followers     Follow[]          @relation("UserFollowing")
+  following     Follow[]          @relation("UserFollowers")
 }
 
 /// Auto-unlocked badges earned by user activity
@@ -208,6 +210,19 @@ model TripReport {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
   trail    Trail?   @relation(fields: [trailId], references: [id])
+}
+
+/// Social follow — follower follows following
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
 }
 
 /// A logged summit — users can summit the same mountain multiple times

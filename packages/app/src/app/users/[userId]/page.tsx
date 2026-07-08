@@ -16,10 +16,13 @@ import ArticleIcon from "@mui/icons-material/Article";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LockIcon from "@mui/icons-material/Lock";
 import MapIcon from "@mui/icons-material/Map";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
+import PersonRemoveIcon from "@mui/icons-material/PersonRemove";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
+import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
 function toSlug(name: string) {
@@ -47,8 +50,32 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 
 export default function PublicProfilePage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = use(params);
+  const { accessToken, user: me } = useAuth();
+  const utils = trpc.useUtils();
+
   const { data, isLoading, isError } = trpc.user.publicProfile.useQuery({ userId });
   const { data: tripReports } = trpc.tripReport.byUser.useQuery({ userId }, { enabled: !!userId });
+  const { data: followCounts } = trpc.user.followCounts.useQuery({ userId }, { enabled: !!userId });
+  const { data: followStatus } = trpc.user.isFollowing.useQuery(
+    { userId },
+    { enabled: !!accessToken && !!userId && me?.id !== userId }
+  );
+
+  const followMutation = trpc.user.follow.useMutation({
+    onSuccess: () => {
+      utils.user.isFollowing.invalidate({ userId });
+      utils.user.followCounts.invalidate({ userId });
+    },
+  });
+  const unfollowMutation = trpc.user.unfollow.useMutation({
+    onSuccess: () => {
+      utils.user.isFollowing.invalidate({ userId });
+      utils.user.followCounts.invalidate({ userId });
+    },
+  });
+
+  const isOwnProfile = !!me && me.id === userId;
+  const isFollowing = followStatus?.isFollowing ?? false;
 
   if (isError) {
     return (
@@ -88,7 +115,7 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
           >
             Back to feed
           </Button>
-          <Stack direction="row" alignItems="center" spacing={2.5}>
+          <Stack direction="row" alignItems="center" spacing={2.5} flexWrap="wrap" useFlexGap>
             {isLoading ? (
               <Skeleton variant="circular" width={72} height={72} sx={{ bgcolor: "rgba(255,255,255,0.2)" }} />
             ) : (
@@ -96,7 +123,7 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
                 {initials(user?.name, user?.email ?? "")}
               </Avatar>
             )}
-            <Box>
+            <Box sx={{ flex: 1 }}>
               {isLoading ? (
                 <>
                   <Skeleton variant="text" width={180} height={40} sx={{ bgcolor: "rgba(255,255,255,0.2)" }} />
@@ -110,9 +137,43 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
                   <Typography sx={{ opacity: 0.7, fontSize: "0.875rem" }}>
                     Member since {user?.createdAt ? fmtDate(user.createdAt) : ""}
                   </Typography>
+                  {followCounts && (
+                    <Stack direction="row" spacing={2} mt={0.5}>
+                      <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                        <strong>{followCounts.followers}</strong> followers
+                      </Typography>
+                      <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                        <strong>{followCounts.following}</strong> following
+                      </Typography>
+                    </Stack>
+                  )}
                 </>
               )}
             </Box>
+            {!isLoading && !isOwnProfile && accessToken && (
+              <Button
+                variant={isFollowing ? "outlined" : "contained"}
+                size="small"
+                startIcon={isFollowing ? <PersonRemoveIcon /> : <PersonAddIcon />}
+                disabled={followMutation.isPending || unfollowMutation.isPending}
+                onClick={() =>
+                  isFollowing
+                    ? unfollowMutation.mutate({ userId })
+                    : followMutation.mutate({ userId })
+                }
+                sx={{
+                  alignSelf: "center",
+                  textTransform: "none",
+                  borderRadius: 2,
+                  ...(isFollowing
+                    ? { color: "rgba(255,255,255,0.85)", borderColor: "rgba(255,255,255,0.5)", "&:hover": { borderColor: "white", bgcolor: "rgba(255,255,255,0.1)" } }
+                    : { bgcolor: "white", color: "primary.main", "&:hover": { bgcolor: "rgba(255,255,255,0.9)" } }
+                  ),
+                }}
+              >
+                {isFollowing ? "Unfollow" : "Follow"}
+              </Button>
+            )}
           </Stack>
         </Box>
       </Box>

@@ -67,6 +67,40 @@ export const tripReportRouter = router({
       });
     }),
 
+  // Update own report
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        title: z.string().min(3).max(120).optional(),
+        body: z.string().min(10).max(5000).optional(),
+        conditions: z.enum(["EXCELLENT", "GOOD", "FAIR", "POOR"]).nullable().optional(),
+        photoUrl: z.string().url().optional().or(z.literal("")).optional(),
+        isPublic: z.boolean().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const report = await prisma.tripReport.findUnique({ where: { id: input.id } });
+      if (!report || report.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Report not found" });
+      }
+      const { id, ...data } = input;
+      return prisma.tripReport.update({
+        where: { id },
+        data: {
+          ...(data.title !== undefined && { title: data.title }),
+          ...(data.body !== undefined && { body: data.body }),
+          ...(data.conditions !== undefined && { conditions: data.conditions }),
+          ...(data.photoUrl !== undefined && { photoUrl: data.photoUrl || null }),
+          ...(data.isPublic !== undefined && { isPublic: data.isPublic }),
+        },
+        include: {
+          user: { select: userSelect },
+          trail: { select: trailSelect },
+        },
+      });
+    }),
+
   // Delete own report
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))

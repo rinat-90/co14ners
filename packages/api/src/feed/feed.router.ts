@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { router, publicProcedure } from "../trpc.js";
+import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { prisma } from "../lib/prisma.js";
 
 function toSlug(name: string) {
@@ -44,6 +44,93 @@ export const feedRouter = router({
       ]);
 
       // Merge & sort by date
+      const events = [
+        ...recentCompletions.map((c) => ({
+          id: `completion-${c.id}`,
+          type: "summit" as const,
+          date: c.completedAt,
+          user: c.user,
+          mountain: { ...c.mountain, slug: toSlug(c.mountain.name) },
+          trail: c.trail,
+          rating: null as number | null,
+          reportTitle: null as string | null,
+          conditions: null as string | null,
+        })),
+        ...recentReviews.map((r) => ({
+          id: `review-${r.id}`,
+          type: "review" as const,
+          date: r.createdAt,
+          user: r.user,
+          mountain: { ...r.mountain, slug: toSlug(r.mountain.name) },
+          trail: null,
+          rating: r.rating,
+          reportTitle: null as string | null,
+          conditions: null as string | null,
+        })),
+        ...recentReports.map((rp) => ({
+          id: `report-${rp.id}`,
+          type: "report" as const,
+          date: rp.createdAt,
+          user: rp.user,
+          mountain: { ...rp.mountain, slug: toSlug(rp.mountain.name) },
+          trail: rp.trail,
+          rating: null as number | null,
+          reportTitle: rp.title,
+          conditions: rp.conditions,
+        })),
+      ]
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, limit);
+
+      return events;
+    }),
+
+  followingFeed: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(50).default(20) }))
+    .query(async ({ ctx, input }) => {
+      const { limit } = input;
+
+      // Get all users the current user follows
+      const follows = await prisma.follow.findMany({
+        where: { followerId: ctx.user.id },
+        select: { followingId: true },
+      });
+      const followingIds = follows.map((f) => f.followingId);
+
+      if (followingIds.length === 0) return [];
+
+      const [recentCompletions, recentReviews, recentReports] = await Promise.all([
+        prisma.completion.findMany({
+          where: { isPrivate: false, userId: { in: followingIds } },
+          orderBy: { completedAt: "desc" },
+          take: limit * 2,
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+            mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
+            trail: { select: { name: true } },
+          },
+        }),
+        prisma.review.findMany({
+          where: { userId: { in: followingIds } },
+          orderBy: { createdAt: "desc" },
+          take: limit * 2,
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+            mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
+          },
+        }),
+        prisma.tripReport.findMany({
+          where: { isPublic: true, userId: { in: followingIds } },
+          orderBy: { createdAt: "desc" },
+          take: limit * 2,
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+            mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
+            trail: { select: { name: true } },
+          },
+        }),
+      ]);
+
       const events = [
         ...recentCompletions.map((c) => ({
           id: `completion-${c.id}`,

@@ -23,6 +23,10 @@ import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import Switch from "@mui/material/Switch";
 import Tooltip from "@mui/material/Tooltip";
 import ArticleIcon from "@mui/icons-material/Article";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -84,12 +88,14 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 interface EditDialogProps {
   open: boolean;
   onClose: () => void;
-  completion: { id: string; completedAt: Date | string } | null;
+  completion: { id: string; completedAt: Date | string; notes?: string | null; isPrivate?: boolean } | null;
 }
 
 function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
   const utils = trpc.useUtils();
   const [date, setDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
 
   const updateMutation = trpc.user.updateCompletion.useMutation({
     onSuccess: () => { utils.user.completions.invalidate(); onClose(); },
@@ -98,6 +104,8 @@ function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
   const handleOpen = () => {
     if (!completion) return;
     setDate(new Date(completion.completedAt).toISOString().slice(0, 10));
+    setNotes(completion.notes ?? "");
+    setIsPrivate(completion.isPrivate ?? false);
   };
 
   return (
@@ -105,11 +113,11 @@ function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
       open={open}
       onClose={onClose}
       TransitionProps={{ onEnter: handleOpen }}
-      maxWidth="xs"
+      maxWidth="sm"
       fullWidth
       PaperProps={{ sx: { borderRadius: 3 } }}
     >
-      <DialogTitle fontWeight={700}>Edit Summit Date</DialogTitle>
+      <DialogTitle fontWeight={700}>Edit Summit</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <TextField
@@ -119,6 +127,20 @@ function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
             onChange={(e) => setDate(e.target.value)}
             fullWidth
             slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <TextField
+            label="Notes (optional)"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            fullWidth
+            multiline
+            rows={3}
+            inputProps={{ maxLength: 2000 }}
+            helperText={`${notes.length}/2000`}
+          />
+          <FormControlLabel
+            control={<Switch checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} />}
+            label="Private (only visible to you)"
           />
           <Typography variant="caption" color="text.secondary">
             To edit your review, visit the mountain page.
@@ -135,6 +157,107 @@ function EditCompletionDialog({ open, onClose, completion }: EditDialogProps) {
             updateMutation.mutate({
               id: completion.id,
               completedAt: date ? new Date(date).toISOString() : undefined,
+              notes: notes.trim() || null,
+              isPrivate,
+            })
+          }
+        >
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ── Edit report dialog ─────────────────────────────────────────────────────────
+
+type ReportEditTarget = {
+  id: string;
+  title: string;
+  body: string;
+  conditions: "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | null;
+  isPublic: boolean;
+} | null;
+
+function EditReportDialog({ open, onClose, report }: { open: boolean; onClose: () => void; report: ReportEditTarget }) {
+  const utils = trpc.useUtils();
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [conditions, setConditions] = useState<"EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "">("");
+  const [isPublic, setIsPublic] = useState(true);
+
+  const updateMutation = trpc.tripReport.update.useMutation({
+    onSuccess: () => { utils.tripReport.myReports.invalidate(); onClose(); },
+  });
+
+  const handleOpen = () => {
+    if (!report) return;
+    setTitle(report.title);
+    setBody(report.body);
+    setConditions(report.conditions ?? "");
+    setIsPublic(report.isPublic);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      TransitionProps={{ onEnter: handleOpen }}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 3 } }}
+    >
+      <DialogTitle fontWeight={700}>Edit Trip Report</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <TextField
+            label="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            fullWidth
+            inputProps={{ maxLength: 120 }}
+          />
+          <TextField
+            label="Report"
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            fullWidth
+            multiline
+            rows={6}
+            inputProps={{ maxLength: 5000 }}
+            helperText={`${body.length}/5000`}
+          />
+          <Select
+            value={conditions}
+            onChange={(e) => setConditions(e.target.value as typeof conditions)}
+            displayEmpty
+            size="small"
+          >
+            <MenuItem value="">No conditions rating</MenuItem>
+            <MenuItem value="EXCELLENT">Excellent</MenuItem>
+            <MenuItem value="GOOD">Good</MenuItem>
+            <MenuItem value="FAIR">Fair</MenuItem>
+            <MenuItem value="POOR">Poor</MenuItem>
+          </Select>
+          <FormControlLabel
+            control={<Switch checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} />}
+            label="Public report"
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="contained"
+          disabled={!title.trim() || body.length < 10 || updateMutation.isPending}
+          onClick={() =>
+            report &&
+            updateMutation.mutate({
+              id: report.id,
+              title: title.trim(),
+              body,
+              conditions: conditions || null,
+              isPublic,
             })
           }
         >
@@ -349,7 +472,8 @@ export default function ProfilePage() {
   const { accessToken, logout } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState(0);
-  const [editTarget, setEditTarget] = useState<Parameters<typeof EditCompletionDialog>[0]["completion"]>(null);
+  const [editTarget, setEditTarget] = useState<EditDialogProps["completion"]>(null);
+  const [editReportTarget, setEditReportTarget] = useState<ReportEditTarget>(null);
 
   const utils = trpc.useUtils();
 
@@ -368,6 +492,9 @@ export default function ProfilePage() {
   });
   const unfavoriteMutation = trpc.user.removeFavorite.useMutation({
     onSuccess: () => utils.user.favorites.invalidate(),
+  });
+  const deleteReportMutation = trpc.tripReport.delete.useMutation({
+    onSuccess: () => utils.tripReport.myReports.invalidate(),
   });
 
   if (!accessToken && typeof window !== "undefined") {
@@ -547,6 +674,8 @@ export default function ProfilePage() {
                               setEditTarget({
                                 id: c.id,
                                 completedAt: c.completedAt,
+                                notes: c.notes,
+                                isPrivate: c.isPrivate,
                               })
                             }
                           >
@@ -760,6 +889,29 @@ export default function ProfilePage() {
                                 {!r.isPublic && " · Private"}
                               </Typography>
                             </Box>
+                            <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
+                              <IconButton
+                                size="small"
+                                onClick={() =>
+                                  setEditReportTarget({
+                                    id: r.id,
+                                    title: r.title,
+                                    body: r.body,
+                                    conditions: (r.conditions ?? null) as "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | null,
+                                    isPublic: r.isPublic,
+                                  })
+                                }
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => deleteReportMutation.mutate({ id: r.id })}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
                           </Box>
                         </Box>
                       );
@@ -776,6 +928,11 @@ export default function ProfilePage() {
         open={!!editTarget}
         onClose={() => setEditTarget(null)}
         completion={editTarget}
+      />
+      <EditReportDialog
+        open={!!editReportTarget}
+        onClose={() => setEditReportTarget(null)}
+        report={editReportTarget}
       />
     </Box>
   );
