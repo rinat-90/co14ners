@@ -60,6 +60,7 @@ import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
 import RangeLabel from "@/components/mountains/RangeLabel";
 import TrailMap from "@/components/mountains/TrailMap";
+import ElevationProfile from "@/components/mountains/ElevationProfile";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
@@ -1578,6 +1579,13 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                     trails={visibleTrails}
                     height={400}
                   />
+                  {visibleTrails[0] && (
+                    <ElevationProfile
+                      key={visibleTrails[0].id}
+                      trailId={visibleTrails[0].id}
+                      trailheadElevation={visibleTrails[0].trailheadElevation}
+                    />
+                  )}
                 </Paper>
               );
             })()}
