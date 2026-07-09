@@ -58,6 +58,7 @@ import MyLocationIcon from "@mui/icons-material/MyLocation";
 import NaturePeopleIcon from "@mui/icons-material/NaturePeople";
 import RouteIcon from "@mui/icons-material/Route";
 import StarIcon from "@mui/icons-material/Star";
+import ShareIcon from "@mui/icons-material/Share";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AppHeader from "@/components/AppHeader";
@@ -65,6 +66,7 @@ import DifficultyChip from "@/components/mountains/DifficultyChip";
 import RangeLabel from "@/components/mountains/RangeLabel";
 import TrailMap from "@/components/mountains/TrailMap";
 import ElevationProfile from "@/components/mountains/ElevationProfile";
+import GearChecklist from "@/components/mountains/GearChecklist";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
@@ -1441,6 +1443,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
   const [editingTrail, setEditingTrail] = useState<TrailForEdit | null>(null);
   const [selectedTrailId, setSelectedTrailId] = useState<string>("");
   const [achievementToast, setAchievementToast] = useState<string[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
   const { data: mountain, isLoading, isError } = trpc.mountain.getBySlug.useQuery({ slug });
@@ -1609,6 +1612,32 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                       }}
                     >
                       {isFavorite ? <BookmarkAddedIcon /> : <BookmarkAddIcon />}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Share">
+                    <IconButton
+                      onClick={() => {
+                        const url = window.location.href;
+                        const shareData = {
+                          title: mountain!.name,
+                          text: `${mountain!.name} — ${mountain!.altitude.toLocaleString()} ft | co14ners`,
+                          url,
+                        };
+                        if (navigator.share && navigator.canShare(shareData)) {
+                          navigator.share(shareData);
+                        } else {
+                          navigator.clipboard.writeText(url);
+                          setToast("Link copied to clipboard!");
+                        }
+                      }}
+                      sx={{
+                        color: "white",
+                        bgcolor: "rgba(255,255,255,0.2)",
+                        backdropFilter: "blur(4px)",
+                        "&:hover": { bgcolor: "rgba(255,255,255,0.3)" },
+                      }}
+                    >
+                      <ShareIcon />
                     </IconButton>
                   </Tooltip>
                 </Stack>
@@ -1914,6 +1943,13 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
               </Paper>
             )}
 
+            {/* Gear Checklist */}
+            {mountain && (
+              <Box mt={2}>
+                <GearChecklist mountainId={id} difficulty={mountain.difficulty} />
+              </Box>
+            )}
+
             {/* Nearby Peaks */}
             {nearbyPeaks && nearbyPeaks.length > 0 && (
               <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
@@ -1967,6 +2003,14 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
           onAchievements={setAchievementToast}
         />
       )}
+
+      <Snackbar
+        open={!!toast}
+        autoHideDuration={2500}
+        onClose={() => setToast(null)}
+        message={toast}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      />
 
       <Snackbar
         open={achievementToast.length > 0}

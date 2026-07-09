@@ -10,6 +10,7 @@ import { feedRouter } from "./feed/feed.router.js";
 import { tripReportRouter } from "./tripReport/tripReport.router.js";
 import { notificationRouter } from "./notification/notification.router.js";
 import { commentRouter } from "./comment/comment.router.js";
+import { gearRouter } from "./gear/gear.router.js";
 
 export const appRouter = router({
   auth: authRouter,
@@ -23,6 +24,7 @@ export const appRouter = router({
   tripReport: tripReportRouter,
   notification: notificationRouter,
   comment: commentRouter,
+  gear: gearRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -1,5 +1,6 @@
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 /// Run with: bun run db:seed  (or: prisma db seed)
@@ -38,6 +39,7 @@ enum AchievementType {
 enum NotificationType {
   FOLLOW             // someone followed you
   REVIEW_ON_SUMMIT   // someone reviewed a peak you've summited
+  COMMENT_ON_REPORT  // someone commented on your trip report
 }
 
 /// Yosemite Decimal System class used for Colorado 14er routes
@@ -85,6 +87,7 @@ model User {
   notifications     Notification[]    @relation("NotificationRecipient")
   actorNotifications Notification[]   @relation("NotificationActor")
   comments          Comment[]
+  gearChecklists    GearChecklist[]
 }
 
 /// In-app notification
@@ -149,12 +152,13 @@ model Mountain {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  trails        Trail[]
-  reviews       Review[]
-  favorites     Favorite[]
-  completions   Completion[]
-  tripReports   TripReport[]
-  notifications Notification[]
+  trails         Trail[]
+  reviews        Review[]
+  favorites      Favorite[]
+  completions    Completion[]
+  tripReports    TripReport[]
+  notifications  Notification[]
+  gearChecklists GearChecklist[]
 }
 
 /// A specific named route up a mountain (e.g. "East Ridge", "North Face")
@@ -264,6 +268,21 @@ model Follow {
   following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@unique([followerId, followingId])
+}
+
+/// Saved gear checklist — checked items per user per mountain
+model GearChecklist {
+  id         String   @id @default(cuid())
+  userId     String
+  mountainId String
+  /// JSON array of checked item keys
+  checked    Json     @default("[]")
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mountainId])
 }
 
 /// A logged summit — users can summit the same mountain multiple times

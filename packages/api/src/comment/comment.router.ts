@@ -27,10 +27,22 @@ export const commentRouter = router({
       if (!report || (!report.isPublic && report.userId !== ctx.user.id)) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Report not found" });
       }
-      return prisma.comment.create({
+      const comment = await prisma.comment.create({
         data: { tripReportId: input.tripReportId, userId: ctx.user.id, body: input.body },
         include: { user: { select: userSelect } },
       });
+      // Notify the report author (unless they commented on their own report)
+      if (report.userId !== ctx.user.id) {
+        await prisma.notification.create({
+          data: {
+            userId: report.userId,
+            actorId: ctx.user.id,
+            type: "COMMENT_ON_REPORT",
+            mountainId: report.mountainId,
+          },
+        });
+      }
+      return comment;
     }),
 
   delete: protectedProcedure

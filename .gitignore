@@ -7,6 +7,7 @@ build
 *.db
 *.db-journal
 packages/api/generated
+packages/api/src/generated
 packages/app/public/sw.js
 packages/app/public/sw.js.map
 packages/app/public/workbox-*.js

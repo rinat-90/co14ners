@@ -3,7 +3,10 @@
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "types": ["bun-types"]
+    "types": ["bun-types"],
+    "paths": {
+      "@prisma/client": ["./src/generated/prisma"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

@@ -22,6 +22,7 @@ import GetAppIcon from "@mui/icons-material/GetApp";
 import IosShareIcon from "@mui/icons-material/IosShare";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MapIcon from "@mui/icons-material/Map";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonIcon from "@mui/icons-material/Person";
@@ -67,7 +68,7 @@ function NotificationBell() {
   function handleOpen(e: React.MouseEvent<HTMLElement>) {
     setAnchor(e.currentTarget);
     // Mark visible unread notifications as read
-    const unreadIds = notifications?.filter((n: any) => !n.read).map((n: any) => n.id) ?? [];
+    const unreadIds = notifications?.filter((n: { read: boolean }) => !n.read).map((n: { id: string }) => n.id) ?? [];
     if (unreadIds.length > 0) markReadMutation.mutate({ ids: unreadIds });
   }
 
@@ -103,7 +104,7 @@ function NotificationBell() {
             <Typography variant="body2" color="text.secondary">No notifications yet.</Typography>
           </Box>
         ) : (
-          notifications.map((n: any) => (
+          notifications.map((n: { id: string; type: string; actorId: string; read: boolean; createdAt: string; actor: { name?: string | null; email: string; avatar?: string | null }; mountain?: { name: string } | null }) => (
             <MenuItem
               key={n.id}
               component={NextLink}
@@ -120,6 +121,8 @@ function NotificationBell() {
                 <Typography variant="body2" sx={{ lineHeight: 1.4 }}>
                   {n.type === "FOLLOW" ? (
                     <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> started following you</>
+                  ) : n.type === "COMMENT_ON_REPORT" ? (
+                    <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> commented on your report for <strong>{n.mountain?.name}</strong></>
                   ) : (
                     <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> reviewed <strong>{n.mountain?.name}</strong></>
                   )}
@@ -128,6 +131,7 @@ function NotificationBell() {
               </Box>
               {n.type === "FOLLOW" && <PersonAddIcon fontSize="small" sx={{ color: "primary.main", mt: 0.5, flexShrink: 0 }} />}
               {n.type === "REVIEW_ON_SUMMIT" && <TerrainIcon fontSize="small" sx={{ color: "secondary.main", mt: 0.5, flexShrink: 0 }} />}
+              {n.type === "COMMENT_ON_REPORT" && <ChatBubbleOutlineIcon fontSize="small" sx={{ color: "info.main", mt: 0.5, flexShrink: 0 }} />}
             </MenuItem>
           ))
         )}
