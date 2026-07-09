@@ -25,6 +25,7 @@ import MapIcon from "@mui/icons-material/Map";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonIcon from "@mui/icons-material/Person";
+import PersonSearchIcon from "@mui/icons-material/PersonSearch";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import { useAuth } from "@/lib/auth-context";
@@ -66,7 +67,7 @@ function NotificationBell() {
   function handleOpen(e: React.MouseEvent<HTMLElement>) {
     setAnchor(e.currentTarget);
     // Mark visible unread notifications as read
-    const unreadIds = notifications?.filter((n) => !n.read).map((n) => n.id) ?? [];
+    const unreadIds = notifications?.filter((n: any) => !n.read).map((n: any) => n.id) ?? [];
     if (unreadIds.length > 0) markReadMutation.mutate({ ids: unreadIds });
   }
 
@@ -102,7 +103,7 @@ function NotificationBell() {
             <Typography variant="body2" color="text.secondary">No notifications yet.</Typography>
           </Box>
         ) : (
-          notifications.map((n) => (
+          notifications.map((n: any) => (
             <MenuItem
               key={n.id}
               component={NextLink}
@@ -267,6 +268,14 @@ export default function AppHeader() {
                 >
                   <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
                   Profile
+                </MenuItem>
+                <MenuItem
+                  component={NextLink}
+                  href="/users/search"
+                  onClick={() => setMenuAnchor(null)}
+                >
+                  <ListItemIcon><PersonSearchIcon fontSize="small" /></ListItemIcon>
+                  Find Climbers
                 </MenuItem>
                 <MenuItem
                   component={NextLink}

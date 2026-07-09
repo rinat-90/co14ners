@@ -121,6 +121,22 @@ export const userRouter = router({
       return { followers, following };
     }),
 
+  search: publicProcedure
+    .input(z.object({ query: z.string().min(1).max(80) }))
+    .query(async ({ input }) => {
+      return prisma.user.findMany({
+        where: {
+          OR: [
+            { name: { contains: input.query, mode: "insensitive" } },
+            { email: { contains: input.query, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true, name: true, email: true, avatar: true, bio: true },
+        take: 20,
+        orderBy: { name: "asc" },
+      });
+    }),
+
   followers: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(async ({ input }) => {

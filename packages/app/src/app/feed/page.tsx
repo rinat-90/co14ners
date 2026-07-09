@@ -285,12 +285,24 @@ export default function FeedPage() {
       <AppHeader />
 
       <Box sx={{ maxWidth: 680, mx: "auto", px: { xs: 2, md: 4 }, pt: 4 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center" mb={3}>
-          <DynamicFeedIcon color="primary" />
-          <Box>
-            <Typography variant="h5" fontWeight={700}>Community</Typography>
-            <Typography variant="body2" color="text.secondary">Recent activity and top summiteers</Typography>
-          </Box>
+        <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <DynamicFeedIcon color="primary" />
+            <Box>
+              <Typography variant="h5" fontWeight={700}>Community</Typography>
+              <Typography variant="body2" color="text.secondary">Recent activity and top summiteers</Typography>
+            </Box>
+          </Stack>
+          <Button
+            component={NextLink}
+            href="/users/search"
+            size="small"
+            startIcon={<PeopleIcon />}
+            variant="outlined"
+            sx={{ borderRadius: 2 }}
+          >
+            Find Climbers
+          </Button>
         </Stack>
 
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}>

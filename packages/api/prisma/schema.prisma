@@ -84,6 +84,7 @@ model User {
   following         Follow[]          @relation("UserFollowers")
   notifications     Notification[]    @relation("NotificationRecipient")
   actorNotifications Notification[]   @relation("NotificationActor")
+  comments          Comment[]
 }
 
 /// In-app notification
@@ -235,6 +236,21 @@ model TripReport {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
   trail    Trail?   @relation(fields: [trailId], references: [id])
+  comments Comment[]
+}
+
+/// Comment on a trip report
+model Comment {
+  id           String     @id @default(cuid())
+  tripReportId String
+  userId       String
+  body         String     @db.Text
+  createdAt    DateTime   @default(now())
+
+  tripReport TripReport @relation(fields: [tripReportId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tripReportId, createdAt])
 }
 
 /// Social follow — follower follows following

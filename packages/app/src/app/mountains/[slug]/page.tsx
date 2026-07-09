@@ -29,7 +29,11 @@ import FormControl from "@mui/material/FormControl";
 import Alert from "@mui/material/Alert";
 import Snackbar from "@mui/material/Snackbar";
 import CircularProgress from "@mui/material/CircularProgress";
+import Collapse from "@mui/material/Collapse";
+import InputAdornment from "@mui/material/InputAdornment";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import SendIcon from "@mui/icons-material/Send";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import CancelIcon from "@mui/icons-material/Cancel";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
@@ -511,6 +515,124 @@ const CONDITIONS_LABELS: Record<string, { label: string; color: string }> = {
   POOR:      { label: "Poor",      color: "error" },
 };
 
+// ── Comment thread ─────────────────────────────────────────────────────────────
+
+function CommentThread({ tripReportId, accessToken }: { tripReportId: string; accessToken: string | null }) {
+  const utils = trpc.useUtils();
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  const { data: comments, isLoading } = trpc.comment.list.useQuery(
+    { tripReportId },
+    { enabled: open }
+  );
+
+  const addMutation = trpc.comment.add.useMutation({
+    onSuccess: () => {
+      utils.comment.list.invalidate({ tripReportId });
+      setDraft("");
+    },
+  });
+  const deleteMutation = trpc.comment.delete.useMutation({
+    onSuccess: () => utils.comment.list.invalidate({ tripReportId }),
+  });
+
+  return (
+    <Box sx={{ mt: 1.5 }}>
+      <Box
+        component="button"
+        onClick={() => setOpen((v) => !v)}
+        sx={{
+          display: "inline-flex", alignItems: "center", gap: 0.5,
+          background: "none", border: "none", cursor: "pointer", p: 0,
+          color: "text.secondary", fontSize: "0.8rem",
+          "&:hover": { color: "primary.main" },
+        }}
+      >
+        <ChatBubbleOutlineIcon sx={{ fontSize: 15 }} />
+        {open ? "Hide comments" : "Comments"}
+      </Box>
+
+      <Collapse in={open}>
+        <Box sx={{ mt: 1.5, pl: 0 }}>
+          {isLoading ? (
+            <CircularProgress size={16} />
+          ) : comments?.length === 0 ? (
+            <Typography variant="caption" color="text.disabled">No comments yet.</Typography>
+          ) : (
+            <Stack spacing={1} mb={1.5}>
+              {comments?.map((c) => (
+                <Box key={c.id} sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+                  <Avatar
+                    component={NextLink}
+                    href={`/users/${c.user.id}`}
+                    src={c.user.avatar ?? undefined}
+                    sx={{ width: 24, height: 24, fontSize: 10, flexShrink: 0, textDecoration: "none" }}
+                  >
+                    {!c.user.avatar && (c.user.name ?? c.user.email).slice(0, 2).toUpperCase()}
+                  </Avatar>
+                  <Box sx={{ flex: 1, bgcolor: "action.hover", borderRadius: 2, px: 1.5, py: 0.75 }}>
+                    <Typography
+                      component={NextLink}
+                      href={`/users/${c.user.id}`}
+                      variant="caption"
+                      fontWeight={700}
+                      sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                    >
+                      {c.user.name ?? c.user.email.split("@")[0]}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontSize: "0.8125rem", lineHeight: 1.5 }}>{c.body}</Typography>
+                  </Box>
+                  {accessToken && (
+                    <IconButton size="small" sx={{ flexShrink: 0, mt: 0.25 }} onClick={() => deleteMutation.mutate({ id: c.id })}>
+                      <DeleteIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  )}
+                </Box>
+              ))}
+            </Stack>
+          )}
+
+          {accessToken && (
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+              <TextField
+                size="small"
+                placeholder="Add a comment…"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && draft.trim()) {
+                    e.preventDefault();
+                    addMutation.mutate({ tripReportId, body: draft.trim() });
+                  }
+                }}
+                fullWidth
+                inputProps={{ maxLength: 1000 }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        disabled={!draft.trim() || addMutation.isPending}
+                        onClick={() => addMutation.mutate({ tripReportId, body: draft.trim() })}
+                      >
+                        <SendIcon fontSize="small" />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: 3 } }}
+              />
+            </Box>
+          )}
+        </Box>
+      </Collapse>
+    </Box>
+  );
+}
+
+// ── Trip Report Dialog ──────────────────────────────────────────────────────────
+
 function TripReportDialog({
   open,
   onClose,
@@ -825,6 +947,7 @@ function TripReportsSection({
                         />
                       </Box>
                     )}
+                    <CommentThread tripReportId={report.id} accessToken={accessToken} />
                   </Box>
                   {/* Delete own report */}
                   {/* We pass accessToken but can't check userId easily client-side; hide button if not logged in */}
