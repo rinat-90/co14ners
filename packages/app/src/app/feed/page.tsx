@@ -89,8 +89,8 @@ function LeaderboardPanel() {
               <Typography sx={{ fontSize: entry.rank <= 3 ? "1.4rem" : "1rem", minWidth: 32, textAlign: "center", fontWeight: 700, color: "text.secondary" }}>
                 {entry.rank <= 3 ? RANK_MEDALS[entry.rank - 1] : `#${entry.rank}`}
               </Typography>
-              <Avatar sx={{ width: 36, height: 36, fontSize: 13, fontWeight: 700, bgcolor: "primary.main" }}>
-                {entry.name.slice(0, 2).toUpperCase()}
+              <Avatar src={entry.avatar ?? undefined} sx={{ width: 36, height: 36, fontSize: 13, fontWeight: 700, bgcolor: "primary.main" }}>
+                {!entry.avatar && entry.name.slice(0, 2).toUpperCase()}
               </Avatar>
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography variant="body2" fontWeight={700} noWrap>{entry.name}</Typography>
@@ -119,7 +119,7 @@ type FeedEvent = {
   id: string;
   type: "summit" | "review" | "report";
   date: Date | string;
-  user: { id: string; name: string | null; email: string };
+  user: { id: string; name: string | null; email: string; avatar: string | null };
   mountain: { id: string; name: string; altitude: number; difficulty: string; slug: string };
   trail: { name: string } | null;
   rating: number | null;
@@ -168,6 +168,7 @@ function EventList({ events, isLoading, emptyMessage, emptyAction }: {
         <Box key={event.id} sx={{ py: 2.5 }}>
           <Stack direction="row" spacing={1.5} alignItems="flex-start">
             <Avatar
+              src={event.user.avatar ?? undefined}
               sx={{
                 width: 36,
                 height: 36,
@@ -177,7 +178,7 @@ function EventList({ events, isLoading, emptyMessage, emptyAction }: {
                 flexShrink: 0,
               }}
             >
-              {initials(event.user.name, event.user.email)}
+              {!event.user.avatar && initials(event.user.name, event.user.email)}
             </Avatar>
 
             <Box sx={{ flex: 1, minWidth: 0 }}>

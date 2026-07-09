@@ -48,6 +48,16 @@ export const userRouter = router({
     .input(z.object({ mountainId: z.string() }))
     .query(({ ctx, input }) => userService.myCompletion(ctx.user.id, input.mountainId)),
 
+  updateProfile: protectedProcedure
+    .input(
+      z.object({
+        name: z.string().min(1).max(80).optional(),
+        bio: z.string().max(300).optional(),
+        avatar: z.string().url().nullable().optional(),
+      })
+    )
+    .mutation(({ ctx, input }) => userService.updateProfile(ctx.user.id, input)),
+
   updateEmail: protectedProcedure
     .input(updateEmailSchema)
     .mutation(({ ctx, input }) => userService.updateEmail(ctx.user.id, input.newEmail, input.currentPassword)),
@@ -66,11 +76,20 @@ export const userRouter = router({
     .input(z.object({ userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       if (ctx.user.id === input.userId) throw new Error("Cannot follow yourself");
+      const existing = await prisma.follow.findUnique({
+        where: { followerId_followingId: { followerId: ctx.user.id, followingId: input.userId } },
+      });
       await prisma.follow.upsert({
         where: { followerId_followingId: { followerId: ctx.user.id, followingId: input.userId } },
         create: { followerId: ctx.user.id, followingId: input.userId },
         update: {},
       });
+      // Notify the followed user only on a new follow (not re-follow)
+      if (!existing) {
+        await prisma.notification.create({
+          data: { userId: input.userId, actorId: ctx.user.id, type: "FOLLOW" },
+        });
+      }
       return { ok: true };
     }),
 
@@ -100,5 +119,27 @@ export const userRouter = router({
         prisma.follow.count({ where: { followerId: input.userId } }),
       ]);
       return { followers, following };
+    }),
+
+  followers: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ input }) => {
+      const rows = await prisma.follow.findMany({
+        where: { followingId: input.userId },
+        orderBy: { createdAt: "desc" },
+        include: { follower: { select: { id: true, name: true, email: true, avatar: true, bio: true } } },
+      });
+      return rows.map((r) => r.follower);
+    }),
+
+  following: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ input }) => {
+      const rows = await prisma.follow.findMany({
+        where: { followerId: input.userId },
+        orderBy: { createdAt: "desc" },
+        include: { following: { select: { id: true, name: true, email: true, avatar: true, bio: true } } },
+      });
+      return rows.map((r) => r.following);
     }),
 });

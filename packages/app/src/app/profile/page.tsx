@@ -28,7 +28,9 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Switch from "@mui/material/Switch";
 import Tooltip from "@mui/material/Tooltip";
+import CircularProgress from "@mui/material/CircularProgress";
 import ArticleIcon from "@mui/icons-material/Article";
+import AddAPhotoIcon from "@mui/icons-material/AddAPhoto";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
@@ -469,11 +471,12 @@ const ALL_ACHIEVEMENTS = [
 // ── Profile page ───────────────────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const { accessToken, logout } = useAuth();
+  const { accessToken, logout, user: authUser, setUser } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState(0);
   const [editTarget, setEditTarget] = useState<EditDialogProps["completion"]>(null);
   const [editReportTarget, setEditReportTarget] = useState<ReportEditTarget>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const utils = trpc.useUtils();
 
@@ -496,6 +499,34 @@ export default function ProfilePage() {
   const deleteReportMutation = trpc.tripReport.delete.useMutation({
     onSuccess: () => utils.tripReport.myReports.invalidate(),
   });
+
+  const updateProfileMutation = trpc.user.updateProfile.useMutation({
+    onSuccess: (updated) => {
+      utils.user.me.invalidate();
+      if (authUser) setUser({ ...authUser, avatar: updated.avatar });
+    },
+  });
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    try {
+      const form = new FormData();
+      form.append("photo", file);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload/photo`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const { url } = await res.json();
+      updateProfileMutation.mutate({ avatar: url });
+    } catch {
+      // silently fail; user can retry
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
 
   if (!accessToken && typeof window !== "undefined") {
     router.push("/login");
@@ -522,9 +553,32 @@ export default function ProfilePage() {
           {isLoading ? (
             <Skeleton variant="circular" width={80} height={80} sx={{ bgcolor: "rgba(255,255,255,0.2)" }} />
           ) : (
-            <Avatar sx={{ width: 80, height: 80, fontSize: 28, fontWeight: 700, bgcolor: "rgba(255,255,255,0.2)", color: "white" }}>
-              {initials(me?.name ?? null, me?.email ?? "")}
-            </Avatar>
+            <Tooltip title="Change photo">
+              <Box
+                component="label"
+                sx={{ position: "relative", cursor: "pointer", borderRadius: "50%", display: "inline-flex", flexShrink: 0 }}
+              >
+                <input type="file" accept="image/*" hidden onChange={handleAvatarChange} />
+                <Avatar
+                  src={me?.avatar ?? undefined}
+                  sx={{ width: 80, height: 80, fontSize: 28, fontWeight: 700, bgcolor: "rgba(255,255,255,0.2)", color: "white" }}
+                >
+                  {!me?.avatar && initials(me?.name ?? null, me?.email ?? "")}
+                </Avatar>
+                <Box
+                  sx={{
+                    position: "absolute", inset: 0, borderRadius: "50%",
+                    bgcolor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
+                    opacity: avatarUploading ? 1 : 0, transition: "opacity 0.2s",
+                    "&:hover": { opacity: 1 },
+                  }}
+                >
+                  {avatarUploading
+                    ? <CircularProgress size={22} sx={{ color: "white" }} />
+                    : <AddAPhotoIcon sx={{ color: "white", fontSize: 22 }} />}
+                </Box>
+              </Box>
+            </Tooltip>
           )}
           <Box sx={{ flex: 1, minWidth: 0 }}>
             {isLoading ? (
@@ -539,6 +593,31 @@ export default function ProfilePage() {
                 </Typography>
                 {me?.name && (
                   <Typography sx={{ opacity: 0.8 }}>{me.email}</Typography>
+                )}
+                {me?.bio && (
+                  <Typography sx={{ opacity: 0.85, mt: 0.5, fontSize: "0.9rem", maxWidth: 480 }}>
+                    {me.bio}
+                  </Typography>
+                )}
+                {me && (
+                  <Stack direction="row" spacing={2} mt={0.5}>
+                    <Typography
+                      component={NextLink}
+                      href={`/users/${me.id}/followers`}
+                      variant="caption"
+                      sx={{ opacity: 0.8, textDecoration: "none", color: "inherit", "&:hover": { opacity: 1, textDecoration: "underline" } }}
+                    >
+                      <strong>{stats?.followers ?? 0}</strong> followers
+                    </Typography>
+                    <Typography
+                      component={NextLink}
+                      href={`/users/${me.id}/following`}
+                      variant="caption"
+                      sx={{ opacity: 0.8, textDecoration: "none", color: "inherit", "&:hover": { opacity: 1, textDecoration: "underline" } }}
+                    >
+                      <strong>{stats?.following ?? 0}</strong> following
+                    </Typography>
+                  </Stack>
                 )}
                 <Typography variant="caption" sx={{ opacity: 0.6 }}>
                   Member since {me?.createdAt ? fmtDate(me.createdAt) : ""}

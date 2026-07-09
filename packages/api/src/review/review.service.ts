@@ -7,7 +7,7 @@ export const reviewService = {
       where: { mountainId },
       orderBy: { createdAt: "desc" },
       include: {
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true, avatar: true } },
       },
     });
   },
@@ -28,7 +28,7 @@ export const reviewService = {
     if (existing) {
       throw new TRPCError({ code: "CONFLICT", message: "You have already reviewed this mountain. Edit your existing review." });
     }
-    return prisma.review.create({
+    const review = await prisma.review.create({
       data: {
         userId,
         mountainId: data.mountainId,
@@ -38,6 +38,26 @@ export const reviewService = {
         hikedAt: data.hikedAt ? new Date(data.hikedAt) : undefined,
       },
     });
+
+    // Notify other users who have summited this peak (exclude the reviewer)
+    const summiteers = await prisma.completion.findMany({
+      where: { mountainId: data.mountainId, userId: { not: userId }, isPrivate: false },
+      select: { userId: true },
+      distinct: ["userId"],
+    });
+    if (summiteers.length > 0) {
+      await prisma.notification.createMany({
+        data: summiteers.map((s) => ({
+          userId: s.userId,
+          actorId: userId,
+          type: "REVIEW_ON_SUMMIT" as const,
+          mountainId: data.mountainId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return review;
   },
 
   async update(

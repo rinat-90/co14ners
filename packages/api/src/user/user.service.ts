@@ -14,8 +14,16 @@ export const userService = {
     });
   },
 
+  async updateProfile(userId: string, data: { name?: string; bio?: string; avatar?: string | null }) {
+    return prisma.user.update({
+      where: { id: userId },
+      data,
+      select: { id: true, email: true, name: true, role: true, avatar: true, bio: true, createdAt: true },
+    });
+  },
+
   async getStats(userId: string) {
-    const [completions, savedCount] = await Promise.all([
+    const [completions, savedCount, followersCount, followingCount] = await Promise.all([
       prisma.completion.findMany({
         where: { userId },
         include: {
@@ -23,6 +31,8 @@ export const userService = {
         },
       }),
       prisma.favorite.count({ where: { userId } }),
+      prisma.follow.count({ where: { followingId: userId } }),
+      prisma.follow.count({ where: { followerId: userId } }),
     ]);
 
     const uniqueMountains = new Set(completions.map((c) => c.mountainId)).size;
@@ -40,6 +50,8 @@ export const userService = {
       rangesCovered,
       highestPeak,
       savedMountains: savedCount,
+      followers: followersCount,
+      following: followingCount,
     };
   },
 
@@ -159,7 +171,7 @@ export const userService = {
     const [user, completions, achievements] = await Promise.all([
       prisma.user.findUniqueOrThrow({
         where: { id: userId },
-        select: { id: true, name: true, email: true, createdAt: true },
+        select: { id: true, name: true, email: true, avatar: true, bio: true, createdAt: true },
       }),
       prisma.completion.findMany({
         where: { userId, isPrivate: false },

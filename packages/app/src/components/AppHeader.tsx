@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import NextLink from "next/link";
 import AppBar from "@mui/material/AppBar";
+import Avatar from "@mui/material/Avatar";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
@@ -11,6 +13,7 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Toolbar from "@mui/material/Toolbar";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import CloseIcon from "@mui/icons-material/Close";
@@ -19,14 +22,117 @@ import GetAppIcon from "@mui/icons-material/GetApp";
 import IosShareIcon from "@mui/icons-material/IosShare";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MapIcon from "@mui/icons-material/Map";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonIcon from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import { useAuth } from "@/lib/auth-context";
+import { trpc } from "@/lib/trpc";
 
 function displayName(user: { name?: string | null; email: string } | null) {
   if (!user) return "Account";
   return user.name ?? user.email.split("@")[0];
+}
+
+function timeAgo(d: Date | string) {
+  const diff = (Date.now() - new Date(d).getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function NotificationBell() {
+  const { accessToken } = useAuth();
+  const utils = trpc.useUtils();
+  const { data: unread } = trpc.notification.unreadCount.useQuery(undefined, { enabled: !!accessToken, refetchInterval: 30000 });
+  const { data: notifications } = trpc.notification.list.useQuery({ limit: 20 }, { enabled: !!accessToken });
+  const markReadMutation = trpc.notification.markRead.useMutation({
+    onSuccess: () => {
+      utils.notification.unreadCount.invalidate();
+      utils.notification.list.invalidate();
+    },
+  });
+  const markAllMutation = trpc.notification.markAllRead.useMutation({
+    onSuccess: () => {
+      utils.notification.unreadCount.invalidate();
+      utils.notification.list.invalidate();
+    },
+  });
+
+  const [anchor, setAnchor] = useState<null | HTMLElement>(null);
+
+  function handleOpen(e: React.MouseEvent<HTMLElement>) {
+    setAnchor(e.currentTarget);
+    // Mark visible unread notifications as read
+    const unreadIds = notifications?.filter((n) => !n.read).map((n) => n.id) ?? [];
+    if (unreadIds.length > 0) markReadMutation.mutate({ ids: unreadIds });
+  }
+
+  return (
+    <>
+      <Tooltip title="Notifications">
+        <IconButton onClick={handleOpen} size="small" color="inherit">
+          <Badge badgeContent={unread?.count || 0} color="error" max={99}>
+            <NotificationsIcon />
+          </Badge>
+        </IconButton>
+      </Tooltip>
+      <Menu
+        anchorEl={anchor}
+        open={!!anchor}
+        onClose={() => setAnchor(null)}
+        transformOrigin={{ horizontal: "right", vertical: "top" }}
+        anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+        slotProps={{ paper: { sx: { mt: 1, width: 340, maxHeight: 480, borderRadius: 2 } } }}
+      >
+        <Box sx={{ px: 2, py: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Typography fontWeight={700}>Notifications</Typography>
+          {(unread?.count ?? 0) > 0 && (
+            <Button size="small" onClick={() => markAllMutation.mutate()} sx={{ fontSize: "0.75rem" }}>
+              Mark all read
+            </Button>
+          )}
+        </Box>
+        <Divider />
+        {!notifications || notifications.length === 0 ? (
+          <Box sx={{ p: 3, textAlign: "center" }}>
+            <NotificationsIcon sx={{ fontSize: 36, color: "text.disabled", mb: 1 }} />
+            <Typography variant="body2" color="text.secondary">No notifications yet.</Typography>
+          </Box>
+        ) : (
+          notifications.map((n) => (
+            <MenuItem
+              key={n.id}
+              component={NextLink}
+              href={n.type === "FOLLOW"
+                ? `/users/${n.actorId}`
+                : `/mountains/${n.mountain?.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`}
+              onClick={() => setAnchor(null)}
+              sx={{ alignItems: "flex-start", gap: 1.5, py: 1.5, bgcolor: n.read ? "transparent" : "action.selected" }}
+            >
+              <Avatar src={n.actor.avatar ?? undefined} sx={{ width: 36, height: 36, mt: 0.25, fontSize: 13, flexShrink: 0 }}>
+                {!n.actor.avatar && (n.actor.name ?? n.actor.email).slice(0, 2).toUpperCase()}
+              </Avatar>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ lineHeight: 1.4 }}>
+                  {n.type === "FOLLOW" ? (
+                    <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> started following you</>
+                  ) : (
+                    <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> reviewed <strong>{n.mountain?.name}</strong></>
+                  )}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">{timeAgo(n.createdAt)}</Typography>
+              </Box>
+              {n.type === "FOLLOW" && <PersonAddIcon fontSize="small" sx={{ color: "primary.main", mt: 0.5, flexShrink: 0 }} />}
+              {n.type === "REVIEW_ON_SUMMIT" && <TerrainIcon fontSize="small" sx={{ color: "secondary.main", mt: 0.5, flexShrink: 0 }} />}
+            </MenuItem>
+          ))
+        )}
+      </Menu>
+    </>
+  );
 }
 
 interface BeforeInstallPromptEvent extends Event {
@@ -133,8 +239,13 @@ export default function AppHeader() {
 
           {accessToken ? (
             <>
+              <NotificationBell />
               <Button
-                startIcon={<AccountCircleIcon />}
+                startIcon={
+                  user?.avatar
+                    ? <Avatar src={user.avatar} sx={{ width: 24, height: 24 }} />
+                    : <AccountCircleIcon />
+                }
                 onClick={(e) => setMenuAnchor(e.currentTarget)}
                 color="inherit"
                 sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}

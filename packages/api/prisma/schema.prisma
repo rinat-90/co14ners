@@ -35,6 +35,11 @@ enum AchievementType {
   HIGHEST_PEAK
 }
 
+enum NotificationType {
+  FOLLOW             // someone followed you
+  REVIEW_ON_SUMMIT   // someone reviewed a peak you've summited
+}
+
 /// Yosemite Decimal System class used for Colorado 14er routes
 enum Difficulty {
   CLASS_1 // Well-maintained trail, no scrambling
@@ -75,8 +80,27 @@ model User {
   refreshTokens RefreshToken[]
   achievements  UserAchievement[]
   tripReports   TripReport[]
-  followers     Follow[]          @relation("UserFollowing")
-  following     Follow[]          @relation("UserFollowers")
+  followers         Follow[]          @relation("UserFollowing")
+  following         Follow[]          @relation("UserFollowers")
+  notifications     Notification[]    @relation("NotificationRecipient")
+  actorNotifications Notification[]   @relation("NotificationActor")
+}
+
+/// In-app notification
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String           // recipient
+  actorId    String           // who triggered it
+  type       NotificationType
+  mountainId String?          // for REVIEW_ON_SUMMIT notifications
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now())
+
+  user     User     @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor    User     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  mountain Mountain? @relation(fields: [mountainId], references: [id], onDelete: SetNull)
+
+  @@index([userId, read, createdAt(sort: Desc)])
 }
 
 /// Auto-unlocked badges earned by user activity
@@ -124,11 +148,12 @@ model Mountain {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  trails      Trail[]
-  reviews     Review[]
-  favorites   Favorite[]
-  completions Completion[]
-  tripReports TripReport[]
+  trails        Trail[]
+  reviews       Review[]
+  favorites     Favorite[]
+  completions   Completion[]
+  tripReports   TripReport[]
+  notifications Notification[]
 }
 
 /// A specific named route up a mountain (e.g. "East Ridge", "North Face")

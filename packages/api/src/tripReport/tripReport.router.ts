@@ -13,7 +13,7 @@ const createSchema = z.object({
   isPublic: z.boolean().default(true),
 });
 
-const userSelect = { id: true, name: true, email: true } as const;
+const userSelect = { id: true, name: true, email: true, avatar: true } as const;
 const mountainSelect = { id: true, name: true, altitude: true, difficulty: true } as const;
 const trailSelect = { id: true, name: true } as const;
 

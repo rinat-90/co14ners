@@ -89,7 +89,7 @@ export const mountainService = {
           id: true,
           completedAt: true,
           notes: true,
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true, email: true, avatar: true } },
         },
       }),
       prisma.review.findMany({
@@ -102,7 +102,7 @@ export const mountainService = {
           body: true,
           hikedAt: true,
           createdAt: true,
-          user: { select: { id: true, name: true, email: true } },
+          user: { select: { id: true, name: true, email: true, avatar: true } },
         },
       }),
     ]);

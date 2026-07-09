@@ -8,6 +8,7 @@ import { recommendationRouter } from "./recommendations/recommendation.router.js
 import { weatherRouter } from "./weather/weather.router.js";
 import { feedRouter } from "./feed/feed.router.js";
 import { tripReportRouter } from "./tripReport/tripReport.router.js";
+import { notificationRouter } from "./notification/notification.router.js";
 
 export const appRouter = router({
   auth: authRouter,
@@ -19,6 +20,7 @@ export const appRouter = router({
   weather: weatherRouter,
   feed: feedRouter,
   tripReport: tripReportRouter,
+  notification: notificationRouter,
 });
 
 export type AppRouter = typeof appRouter;

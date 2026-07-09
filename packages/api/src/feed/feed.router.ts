@@ -18,7 +18,7 @@ export const feedRouter = router({
           orderBy: { completedAt: "desc" },
           take: limit * 2,
           include: {
-            user: { select: { id: true, name: true, email: true } },
+            user: { select: { id: true, name: true, email: true, avatar: true } },
             mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
             trail: { select: { name: true } },
           },
@@ -27,7 +27,7 @@ export const feedRouter = router({
           orderBy: { createdAt: "desc" },
           take: limit * 2,
           include: {
-            user: { select: { id: true, name: true, email: true } },
+            user: { select: { id: true, name: true, email: true, avatar: true } },
             mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
           },
         }),
@@ -36,7 +36,7 @@ export const feedRouter = router({
           orderBy: { createdAt: "desc" },
           take: limit * 2,
           include: {
-            user: { select: { id: true, name: true, email: true } },
+            user: { select: { id: true, name: true, email: true, avatar: true } },
             mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
             trail: { select: { name: true } },
           },
@@ -105,7 +105,7 @@ export const feedRouter = router({
           orderBy: { completedAt: "desc" },
           take: limit * 2,
           include: {
-            user: { select: { id: true, name: true, email: true } },
+            user: { select: { id: true, name: true, email: true, avatar: true } },
             mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
             trail: { select: { name: true } },
           },
@@ -115,7 +115,7 @@ export const feedRouter = router({
           orderBy: { createdAt: "desc" },
           take: limit * 2,
           include: {
-            user: { select: { id: true, name: true, email: true } },
+            user: { select: { id: true, name: true, email: true, avatar: true } },
             mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
           },
         }),
@@ -124,7 +124,7 @@ export const feedRouter = router({
           orderBy: { createdAt: "desc" },
           take: limit * 2,
           include: {
-            user: { select: { id: true, name: true, email: true } },
+            user: { select: { id: true, name: true, email: true, avatar: true } },
             mountain: { select: { id: true, name: true, altitude: true, difficulty: true } },
             trail: { select: { name: true } },
           },
@@ -192,7 +192,7 @@ export const feedRouter = router({
     const userIds = top10.map(([id]) => id);
     const users = await prisma.user.findMany({
       where: { id: { in: userIds } },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, avatar: true },
     });
 
     // Get highest peak per user for tiebreaker display
@@ -212,6 +212,7 @@ export const feedRouter = router({
       rank: i + 1,
       userId,
       name: userMap.get(userId)?.name ?? userMap.get(userId)?.email?.split("@")[0] ?? "Unknown",
+      avatar: userMap.get(userId)?.avatar ?? null,
       uniquePeaks,
       highestPeak: highestMap.get(userId) ?? 0,
     }));

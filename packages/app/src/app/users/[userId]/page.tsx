@@ -119,8 +119,11 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
             {isLoading ? (
               <Skeleton variant="circular" width={72} height={72} sx={{ bgcolor: "rgba(255,255,255,0.2)" }} />
             ) : (
-              <Avatar sx={{ width: 72, height: 72, fontSize: 26, fontWeight: 700, bgcolor: "rgba(255,255,255,0.2)", color: "white" }}>
-                {initials(user?.name, user?.email ?? "")}
+              <Avatar
+                src={user?.avatar ?? undefined}
+                sx={{ width: 72, height: 72, fontSize: 26, fontWeight: 700, bgcolor: "rgba(255,255,255,0.2)", color: "white" }}
+              >
+                {!user?.avatar && initials(user?.name, user?.email ?? "")}
               </Avatar>
             )}
             <Box sx={{ flex: 1 }}>
@@ -134,15 +137,30 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
                   <Typography variant="h4" fontWeight={700} sx={{ fontSize: { xs: "1.4rem", md: "2rem" } }}>
                     {user?.name ?? user?.email?.split("@")[0]}
                   </Typography>
+                  {user?.bio && (
+                    <Typography sx={{ opacity: 0.85, fontSize: "0.9rem", mt: 0.25, maxWidth: 420 }}>
+                      {user.bio}
+                    </Typography>
+                  )}
                   <Typography sx={{ opacity: 0.7, fontSize: "0.875rem" }}>
                     Member since {user?.createdAt ? fmtDate(user.createdAt) : ""}
                   </Typography>
                   {followCounts && (
                     <Stack direction="row" spacing={2} mt={0.5}>
-                      <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                      <Typography
+                        component={NextLink}
+                        href={`/users/${userId}/followers`}
+                        variant="caption"
+                        sx={{ opacity: 0.85, textDecoration: "none", color: "inherit", "&:hover": { opacity: 1, textDecoration: "underline" } }}
+                      >
                         <strong>{followCounts.followers}</strong> followers
                       </Typography>
-                      <Typography variant="caption" sx={{ opacity: 0.85 }}>
+                      <Typography
+                        component={NextLink}
+                        href={`/users/${userId}/following`}
+                        variant="caption"
+                        sx={{ opacity: 0.85, textDecoration: "none", color: "inherit", "&:hover": { opacity: 1, textDecoration: "underline" } }}
+                      >
                         <strong>{followCounts.following}</strong> following
                       </Typography>
                     </Stack>

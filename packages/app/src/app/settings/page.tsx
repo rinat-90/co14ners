@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -12,9 +12,77 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
+import PersonIcon from "@mui/icons-material/Person";
 import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
+
+// ── Edit Profile ───────────────────────────────────────────────────────────────
+
+function EditProfileSection() {
+  const utils = trpc.useUtils();
+  const { user: authUser, setUser } = useAuth();
+  const { data: me } = trpc.user.me.useQuery();
+  const [name, setName] = useState("");
+  const [bio, setBio] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  // Pre-fill from server data once loaded
+  useEffect(() => {
+    if (me) {
+      setName(me.name ?? "");
+      setBio(me.bio ?? "");
+    }
+  }, [me]);
+
+  const mutation = trpc.user.updateProfile.useMutation({
+    onSuccess: (updated) => {
+      utils.user.me.invalidate();
+      if (authUser) setUser({ ...authUser, name: updated.name ?? null });
+      setSuccess(true);
+    },
+  });
+
+  return (
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+      <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
+        <PersonIcon color="primary" />
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>Edit Profile</Typography>
+      </Stack>
+      <Stack spacing={2}>
+        <TextField
+          label="Display name"
+          value={name}
+          onChange={(e) => { setName(e.target.value); setSuccess(false); }}
+          fullWidth
+          inputProps={{ maxLength: 80 }}
+          helperText="How your name appears to other users"
+        />
+        <TextField
+          label="Bio"
+          value={bio}
+          onChange={(e) => { setBio(e.target.value); setSuccess(false); }}
+          multiline
+          rows={3}
+          fullWidth
+          inputProps={{ maxLength: 300 }}
+          helperText={`${bio.length}/300`}
+        />
+        {mutation.error && <Alert severity="error">{mutation.error.message}</Alert>}
+        {success && <Alert severity="success">Profile updated.</Alert>}
+        <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button
+            variant="contained"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate({ name: name.trim() || undefined, bio: bio.trim() })}
+          >
+            {mutation.isPending ? "Saving…" : "Save"}
+          </Button>
+        </Box>
+      </Stack>
+    </Paper>
+  );
+}
 
 // ── Change Email ───────────────────────────────────────────────────────────────
 
@@ -158,6 +226,7 @@ export default function SettingsPage() {
           Settings
         </Typography>
         <Stack spacing={3}>
+          <EditProfileSection />
           <ChangeEmailSection />
           <ChangePasswordSection />
         </Stack>

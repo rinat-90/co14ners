@@ -5,6 +5,7 @@ import { createRequire } from "module";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./router.js";
 import { createContext } from "./trpc.js";
+import { upload, uploadPhotoHandler } from "./upload/upload.handler.js";
 
 // Run schema sync before starting the server so tables always exist
 try {
@@ -31,6 +32,8 @@ app.use(
     createContext,
   })
 );
+
+app.post("/upload/photo", upload.single("photo"), uploadPhotoHandler);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });

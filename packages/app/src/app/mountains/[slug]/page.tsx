@@ -28,7 +28,10 @@ import InputLabel from "@mui/material/InputLabel";
 import FormControl from "@mui/material/FormControl";
 import Alert from "@mui/material/Alert";
 import Snackbar from "@mui/material/Snackbar";
+import CircularProgress from "@mui/material/CircularProgress";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
+import CancelIcon from "@mui/icons-material/Cancel";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import AcUnitIcon from "@mui/icons-material/AcUnit";
 import AirIcon from "@mui/icons-material/Air";
@@ -453,8 +456,8 @@ function ReviewsSection({ mountainId, mountainSlug, accessToken }: { mountainId:
             .map((review) => (
               <Box key={review.id} sx={{ py: 2 }}>
                 <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
-                  <Avatar sx={{ width: 32, height: 32, fontSize: 12, bgcolor: "primary.light" }}>
-                    {initials(review.user.name, review.user.email)}
+                  <Avatar src={review.user.avatar ?? undefined} sx={{ width: 32, height: 32, fontSize: 12, bgcolor: "primary.light" }}>
+                    {!review.user.avatar && initials(review.user.name, review.user.email)}
                   </Avatar>
                   <Box sx={{ flex: 1 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
@@ -526,17 +529,80 @@ function TripReportDialog({
   const [conditions, setConditions] = useState<"EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "">("");
   const [trailId, setTrailId] = useState("");
   const [isPublic, setIsPublic] = useState(true);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null;
+    setPhotoFile(file);
+    setUploadError(null);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPhotoPreview(url);
+    } else {
+      setPhotoPreview(null);
+    }
+  }
+
+  function clearPhoto() {
+    setPhotoFile(null);
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoPreview(null);
+    setUploadError(null);
+  }
+
+  function handleClose() {
+    clearPhoto();
+    setTitle(""); setBody(""); setConditions(""); setTrailId(""); setIsPublic(true);
+    onClose();
+  }
 
   const createMutation = trpc.tripReport.create.useMutation({
     onSuccess: () => {
       utils.tripReport.list.invalidate({ mountainId });
-      onClose();
-      setTitle(""); setBody(""); setConditions(""); setTrailId("");
+      handleClose();
     },
   });
 
+  async function handlePublish() {
+    let photoUrl: string | undefined;
+
+    if (photoFile) {
+      setUploading(true);
+      setUploadError(null);
+      try {
+        const form = new FormData();
+        form.append("photo", photoFile);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload/photo`, {
+          method: "POST",
+          body: form,
+        });
+        if (!res.ok) throw new Error("Upload failed");
+        const data = await res.json();
+        photoUrl = data.url;
+      } catch {
+        setUploadError("Photo upload failed. Try again or submit without a photo.");
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
+    createMutation.mutate({
+      mountainId,
+      trailId: trailId || undefined,
+      title: title.trim(),
+      body: body.trim(),
+      conditions: conditions || undefined,
+      photoUrl,
+      isPublic,
+    });
+  }
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
       <DialogTitle fontWeight={700}>Write a Trip Report</DialogTitle>
       <DialogContent>
         <Stack spacing={2.5} sx={{ mt: 1 }}>
@@ -585,6 +651,34 @@ function TripReportDialog({
               </FormControl>
             )}
           </Stack>
+
+          {/* Photo upload */}
+          {photoPreview ? (
+            <Box sx={{ position: "relative", borderRadius: 2, overflow: "hidden", lineHeight: 0 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photoPreview} alt="Preview" style={{ width: "100%", maxHeight: 240, objectFit: "cover" }} />
+              <IconButton
+                size="small"
+                onClick={clearPhoto}
+                sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(0,0,0,0.55)", color: "#fff", "&:hover": { bgcolor: "rgba(0,0,0,0.75)" } }}
+              >
+                <CancelIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          ) : (
+            <Button
+              component="label"
+              variant="outlined"
+              startIcon={<AddPhotoAlternateIcon />}
+              sx={{ borderStyle: "dashed", borderRadius: 2, py: 1.5 }}
+            >
+              Add a photo (optional)
+              <input type="file" accept="image/*" hidden onChange={handlePhotoChange} />
+            </Button>
+          )}
+
+          {uploadError && <Alert severity="error" sx={{ borderRadius: 2 }}>{uploadError}</Alert>}
+
           <Stack direction="row" spacing={1} alignItems="center">
             <Chip
               label={isPublic ? "Public" : "Private"}
@@ -600,22 +694,14 @@ function TripReportDialog({
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleClose}>Cancel</Button>
         <Button
           variant="contained"
-          disabled={title.trim().length < 3 || body.trim().length < 10 || createMutation.isPending}
-          onClick={() =>
-            createMutation.mutate({
-              mountainId,
-              trailId: trailId || undefined,
-              title: title.trim(),
-              body: body.trim(),
-              conditions: conditions || undefined,
-              isPublic,
-            })
-          }
+          disabled={title.trim().length < 3 || body.trim().length < 10 || uploading || createMutation.isPending}
+          onClick={handlePublish}
+          startIcon={uploading ? <CircularProgress size={16} color="inherit" /> : undefined}
         >
-          Publish
+          {uploading ? "Uploading…" : "Publish"}
         </Button>
       </DialogActions>
     </Dialog>
@@ -684,9 +770,10 @@ function TripReportsSection({
                   <Avatar
                     component={NextLink}
                     href={`/users/${report.user.id}`}
+                    src={report.user.avatar ?? undefined}
                     sx={{ width: 32, height: 32, fontSize: 12, bgcolor: "secondary.main", textDecoration: "none", flexShrink: 0 }}
                   >
-                    {initials(report.user.name, report.user.email)}
+                    {!report.user.avatar && initials(report.user.name, report.user.email)}
                   </Avatar>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 0.5 }}>
@@ -721,6 +808,22 @@ function TripReportsSection({
                     >
                       {report.body}
                     </Typography>
+                    {report.photoUrl && (
+                      <Box
+                        component="a"
+                        href={report.photoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ display: "block", mt: 1.5, borderRadius: 2, overflow: "hidden", lineHeight: 0 }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={report.photoUrl}
+                          alt="Trip photo"
+                          style={{ width: "100%", maxHeight: 320, objectFit: "cover", display: "block" }}
+                        />
+                      </Box>
+                    )}
                   </Box>
                   {/* Delete own report */}
                   {/* We pass accessToken but can't check userId easily client-side; hide button if not logged in */}
@@ -1652,8 +1755,8 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                   {conditions.map((c) => (
                     <Box key={c.id} sx={{ py: 1.25 }}>
                       <Stack direction="row" spacing={0.75} alignItems="center" mb={0.5}>
-                        <Avatar sx={{ width: 22, height: 22, fontSize: 10, bgcolor: "primary.light" }}>
-                          {(c.user.name ?? c.user.email).slice(0, 2).toUpperCase()}
+                        <Avatar src={c.user.avatar ?? undefined} sx={{ width: 22, height: 22, fontSize: 10, bgcolor: "primary.light" }}>
+                          {!c.user.avatar && (c.user.name ?? c.user.email).slice(0, 2).toUpperCase()}
                         </Avatar>
                         <Typography
                           component={NextLink}
