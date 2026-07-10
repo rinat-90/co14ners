@@ -170,4 +170,13 @@ export const mountainService = {
       lastUpdated: reports[0].createdAt,
     };
   },
+
+  async search(query: string) {
+    return prisma.mountain.findMany({
+      where: { name: { contains: query, mode: "insensitive" } },
+      select: { id: true, name: true, altitude: true, difficulty: true, range: true },
+      orderBy: { altitude: "desc" },
+      take: 8,
+    });
+  },
 };

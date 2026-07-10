@@ -30,4 +30,8 @@ export const mountainRouter = router({
   conditionsSummary: publicProcedure
     .input(z.object({ mountainId: z.string() }))
     .query(({ input }) => mountainService.conditionsSummary(input.mountainId)),
+
+  search: publicProcedure
+    .input(z.object({ query: z.string().min(1).max(80) }))
+    .query(({ input }) => mountainService.search(input.query)),
 });

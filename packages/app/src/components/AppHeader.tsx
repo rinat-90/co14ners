@@ -30,11 +30,13 @@ import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonIcon from "@mui/icons-material/Person";
 import BarChartIcon from "@mui/icons-material/BarChart";
 import PersonSearchIcon from "@mui/icons-material/PersonSearch";
+import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import { useAuth } from "@/lib/auth-context";
 import { useThemeMode } from "@/lib/theme-context";
 import { trpc } from "@/lib/trpc";
+import GlobalSearch from "@/components/GlobalSearch";
 
 function displayName(user: { name?: string | null; email: string } | null) {
   if (!user) return "Account";
@@ -159,10 +161,22 @@ function isIosSafari() {
 export default function AppHeader() {
   const { accessToken, user, logout } = useAuth();
   const { mode, toggle: toggleTheme } = useThemeMode();
+  const [searchOpen, setSearchOpen] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosBanner, setShowIosBanner] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "/" && !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName)) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     const isStandalone =
@@ -220,6 +234,11 @@ export default function AppHeader() {
         </Box>
 
         <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+          <Tooltip title="Search (/)">
+            <IconButton onClick={() => setSearchOpen(true)} size="small" color="inherit">
+              <SearchIcon />
+            </IconButton>
+          </Tooltip>
           <Button
             component={NextLink}
             href="/mountains"
@@ -361,6 +380,8 @@ export default function AppHeader() {
           </IconButton>
         </Box>
       )}
+
+      <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
 
       {/* iOS Safari install banner */}
       {showIosBanner && !dismissed && (
