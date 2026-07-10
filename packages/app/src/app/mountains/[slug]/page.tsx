@@ -520,7 +520,7 @@ const CONDITIONS_LABELS: Record<string, { label: string; color: string }> = {
 
 // ── Comment thread ─────────────────────────────────────────────────────────────
 
-function CommentThread({ tripReportId, accessToken }: { tripReportId: string; accessToken: string | null }) {
+function CommentThread({ tripReportId, accessToken, userId, initialCount }: { tripReportId: string; accessToken: string | null; userId: string | null; initialCount: number }) {
   const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -553,7 +553,9 @@ function CommentThread({ tripReportId, accessToken }: { tripReportId: string; ac
         }}
       >
         <ChatBubbleOutlineIcon sx={{ fontSize: 15 }} />
-        {open ? "Hide comments" : "Comments"}
+        {open
+          ? `Hide comments`
+          : `Comments${(comments?.length ?? initialCount) > 0 ? ` (${comments?.length ?? initialCount})` : ""}`}
       </Box>
 
       <Collapse in={open}>
@@ -586,7 +588,7 @@ function CommentThread({ tripReportId, accessToken }: { tripReportId: string; ac
                     </Typography>
                     <Typography variant="body2" sx={{ fontSize: "0.8125rem", lineHeight: 1.5 }}>{c.body}</Typography>
                   </Box>
-                  {accessToken && (
+                  {userId === c.user.id && (
                     <IconButton size="small" sx={{ flexShrink: 0, mt: 0.25 }} onClick={() => deleteMutation.mutate({ id: c.id })}>
                       <DeleteIcon sx={{ fontSize: 14 }} />
                     </IconButton>
@@ -1133,7 +1135,7 @@ function TripReportsSection({
                         />
                       </Box>
                     )}
-                    <CommentThread tripReportId={report.id} accessToken={accessToken} />
+                    <CommentThread tripReportId={report.id} accessToken={accessToken} userId={user?.id ?? null} initialCount={report._count.comments} />
                   </Box>
                   {/* Edit/Delete own report */}
                   {user?.id === report.user.id && (

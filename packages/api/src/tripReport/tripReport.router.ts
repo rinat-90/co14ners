@@ -29,6 +29,7 @@ export const tripReportRouter = router({
         include: {
           user: { select: userSelect },
           trail: { select: trailSelect },
+          _count: { select: { comments: true } },
         },
       });
     }),
