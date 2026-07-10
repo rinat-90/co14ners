@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import NextLink from "next/link";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
@@ -833,6 +833,178 @@ function TripReportDialog({
   );
 }
 
+type ReportForEdit = {
+  id: string;
+  title: string;
+  body: string;
+  conditions: string | null;
+  photoUrl: string | null;
+  isPublic: boolean;
+};
+
+function EditTripReportDialog({
+  open,
+  onClose,
+  report,
+  mountainId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  report: ReportForEdit | null;
+  mountainId: string;
+}) {
+  const utils = trpc.useUtils();
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [conditions, setConditions] = useState<"EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "">("");
+  const [isPublic, setIsPublic] = useState(true);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    if (report) {
+      setTitle(report.title);
+      setBody(report.body);
+      setConditions((report.conditions as "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "") ?? "");
+      setIsPublic(report.isPublic);
+      setExistingPhotoUrl(report.photoUrl);
+      setPhotoFile(null);
+      setPhotoPreview(null);
+    }
+  }, [report]);
+
+  const updateMutation = trpc.tripReport.update.useMutation({
+    onSuccess: () => {
+      utils.tripReport.list.invalidate({ mountainId });
+      onClose();
+    },
+  });
+
+  async function handleSave() {
+    if (!report) return;
+    let photoUrl: string | null | undefined = undefined;
+    if (photoFile) {
+      setUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("photo", photoFile);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload/photo`, { method: "POST", body: fd });
+        const json = await res.json() as { url: string };
+        photoUrl = json.url;
+      } finally {
+        setUploading(false);
+      }
+    } else if (existingPhotoUrl === null) {
+      photoUrl = "";
+    }
+    updateMutation.mutate({
+      id: report.id,
+      title,
+      body,
+      conditions: conditions || null,
+      isPublic,
+      ...(photoUrl !== undefined && { photoUrl }),
+    });
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle fontWeight={700}>Edit Trip Report</DialogTitle>
+      <DialogContent>
+        <TextField
+          label="Title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          fullWidth
+          sx={{ mt: 1, mb: 2 }}
+        />
+        <TextField
+          label="Report"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          multiline
+          rows={5}
+          fullWidth
+          sx={{ mb: 2 }}
+        />
+        <TextField
+          select
+          label="Conditions"
+          value={conditions}
+          onChange={(e) => setConditions(e.target.value as "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "")}
+          fullWidth
+          sx={{ mb: 2 }}
+        >
+          <MenuItem value="">No rating</MenuItem>
+          {(["EXCELLENT", "GOOD", "FAIR", "POOR"] as const).map((c) => (
+            <MenuItem key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</MenuItem>
+          ))}
+        </TextField>
+        {/* Photo */}
+        {(existingPhotoUrl || photoPreview) && (
+          <Box sx={{ position: "relative", mb: 1.5, lineHeight: 0 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={photoPreview ?? existingPhotoUrl ?? ""}
+              alt="Trip photo"
+              style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 8 }}
+            />
+            <IconButton
+              size="small"
+              onClick={() => { setPhotoFile(null); setPhotoPreview(null); setExistingPhotoUrl(null); }}
+              sx={{ position: "absolute", top: 4, right: 4, bgcolor: "rgba(0,0,0,0.6)", color: "white", "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
+            >
+              <CancelIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        )}
+        <Button
+          component="label"
+          startIcon={<AddPhotoAlternateIcon />}
+          size="small"
+          sx={{ mb: 2 }}
+        >
+          {existingPhotoUrl || photoPreview ? "Replace photo" : "Add photo"}
+          <input type="file" hidden accept="image/*" onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            setPhotoFile(f);
+            if (f) setPhotoPreview(URL.createObjectURL(f));
+          }} />
+        </Button>
+        <Box>
+          <Button
+            size="small"
+            variant={isPublic ? "contained" : "outlined"}
+            onClick={() => setIsPublic(true)}
+            sx={{ mr: 1 }}
+          >
+            Public
+          </Button>
+          <Button
+            size="small"
+            variant={!isPublic ? "contained" : "outlined"}
+            onClick={() => setIsPublic(false)}
+          >
+            Private
+          </Button>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="contained"
+          onClick={handleSave}
+          disabled={!title.trim() || !body.trim() || uploading || updateMutation.isPending}
+        >
+          {uploading ? "Uploading…" : updateMutation.isPending ? "Saving…" : "Save"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 function TripReportsSection({
   mountainId,
   mountainSlug,
@@ -844,8 +1016,10 @@ function TripReportsSection({
   accessToken: string | null;
   trails: { id: string; name: string }[];
 }) {
+  const { user } = useAuth();
   const utils = trpc.useUtils();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<ReportForEdit | null>(null);
 
   const { data: reports, isLoading } = trpc.tripReport.list.useQuery({ mountainId });
 
@@ -951,21 +1125,34 @@ function TripReportsSection({
                     )}
                     <CommentThread tripReportId={report.id} accessToken={accessToken} />
                   </Box>
-                  {/* Delete own report */}
-                  {/* We pass accessToken but can't check userId easily client-side; hide button if not logged in */}
-                  {accessToken && (
-                    <Tooltip title="Delete report">
-                      <span>
+                  {/* Edit/Delete own report */}
+                  {user?.id === report.user.id && (
+                    <Stack direction="row" spacing={0.5} sx={{ flexShrink: 0 }}>
+                      <Tooltip title="Edit report">
+                        <IconButton
+                          size="small"
+                          onClick={() => setEditTarget({
+                            id: report.id,
+                            title: report.title,
+                            body: report.body,
+                            conditions: report.conditions ?? null,
+                            photoUrl: report.photoUrl ?? null,
+                            isPublic: report.isPublic,
+                          })}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete report">
                         <IconButton
                           size="small"
                           color="error"
-                          sx={{ flexShrink: 0 }}
                           onClick={() => deleteMutation.mutate({ id: report.id })}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
-                      </span>
-                    </Tooltip>
+                      </Tooltip>
+                    </Stack>
                   )}
                 </Box>
               </Box>
@@ -980,6 +1167,12 @@ function TripReportsSection({
         mountainId={mountainId}
         mountainSlug={mountainSlug}
         trails={trails}
+      />
+      <EditTripReportDialog
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        report={editTarget}
+        mountainId={mountainId}
       />
     </Paper>
   );
