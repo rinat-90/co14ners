@@ -257,6 +257,56 @@ export const userRouter = router({
       });
     }),
 
+  suggestedFollows: protectedProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(20).default(5) }))
+    .query(async ({ ctx, input }) => {
+      // My summited mountain IDs
+      const myCompletions = await prisma.completion.findMany({
+        where: { userId: ctx.user.id },
+        select: { mountainId: true },
+      });
+      const myPeakIds = new Set(myCompletions.map((c) => c.mountainId));
+
+      if (myPeakIds.size === 0) return [];
+
+      // Users I already follow (or myself)
+      const alreadyFollowing = await prisma.follow.findMany({
+        where: { followerId: ctx.user.id },
+        select: { followingId: true },
+      });
+      const excludeIds = new Set([ctx.user.id, ...alreadyFollowing.map((f) => f.followingId)]);
+
+      // All non-private completions for peaks I've done, excluding users I already follow
+      const sharedCompletions = await prisma.completion.findMany({
+        where: {
+          mountainId: { in: [...myPeakIds] },
+          isPrivate: false,
+          userId: { notIn: [...excludeIds] },
+        },
+        select: {
+          userId: true,
+          mountainId: true,
+          user: { select: { id: true, name: true, email: true, avatar: true, bio: true } },
+        },
+      });
+
+      // Count shared peaks per user
+      const sharedMap = new Map<string, { user: typeof sharedCompletions[0]["user"]; sharedPeaks: number }>();
+      for (const c of sharedCompletions) {
+        const entry = sharedMap.get(c.userId);
+        if (entry) {
+          entry.sharedPeaks++;
+        } else {
+          sharedMap.set(c.userId, { user: c.user, sharedPeaks: 1 });
+        }
+      }
+
+      return [...sharedMap.values()]
+        .sort((a, b) => b.sharedPeaks - a.sharedPeaks)
+        .slice(0, input.limit)
+        .map(({ user, sharedPeaks }) => ({ ...user, sharedPeaks }));
+    }),
+
   leaderboard: publicProcedure
     .input(z.object({ metric: z.enum(["summits", "elevation", "unique"]).default("summits"), limit: z.number().int().min(1).max(100).default(25) }))
     .query(async ({ input }) => {

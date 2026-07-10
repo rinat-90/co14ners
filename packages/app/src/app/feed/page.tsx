@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import NextLink from "next/link";
+import { useSearchParams } from "next/navigation";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -284,56 +285,78 @@ function FollowingPanel() {
   );
 }
 
-export default function FeedPage() {
-  const [tab, setTab] = useState(0);
+function FeedContent() {
   const { accessToken } = useAuth();
+  const searchParams = useSearchParams();
+
+  // tab=following → 1 (only if logged in), tab=leaderboard → last tab
+  const initialTab = (() => {
+    const p = searchParams.get("tab");
+    if (p === "following" && accessToken) return 1;
+    if (p === "leaderboard") return accessToken ? 2 : 1;
+    return 0;
+  })();
+  const [tab, setTab] = useState(initialTab);
+
+  // Re-sync if auth state changes after hydration
+  useEffect(() => {
+    if (searchParams.get("tab") === "following" && accessToken) setTab(1);
+  }, [accessToken, searchParams]);
+
   const { data: events, isLoading } = trpc.feed.list.useQuery({ limit: 30 });
 
   return (
+    <Box sx={{ maxWidth: 680, mx: "auto", px: { xs: 2, md: 4 }, pt: 4 }}>
+      <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" useFlexGap>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <DynamicFeedIcon color="primary" />
+          <Box>
+            <Typography variant="h5" fontWeight={700}>Community</Typography>
+            <Typography variant="body2" color="text.secondary">Recent activity and top summiteers</Typography>
+          </Box>
+        </Stack>
+        <Button
+          component={NextLink}
+          href="/users/search"
+          size="small"
+          startIcon={<PeopleIcon />}
+          variant="outlined"
+          sx={{ borderRadius: 2 }}
+        >
+          Find Climbers
+        </Button>
+      </Stack>
+
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}>
+        <Tab icon={<DynamicFeedIcon fontSize="small" />} iconPosition="start" label="Activity" />
+        {accessToken && <Tab icon={<PeopleIcon fontSize="small" />} iconPosition="start" label="Following" />}
+        <Tab icon={<LeaderboardIcon fontSize="small" />} iconPosition="start" label="Leaderboard" />
+      </Tabs>
+
+      {/* Leaderboard is always the last tab; adjust index based on auth */}
+      {tab === (accessToken ? 2 : 1) && <LeaderboardPanel />}
+      {tab === 0 && (
+        <EventList
+          events={events}
+          isLoading={isLoading}
+          emptyMessage="No activity yet"
+          emptyAction={
+            <Button variant="contained" component={NextLink} href="/mountains">Browse 14ers</Button>
+          }
+        />
+      )}
+      {accessToken && tab === 1 && <FollowingPanel />}
+    </Box>
+  );
+}
+
+export default function FeedPage() {
+  return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", pb: { xs: 10, md: 4 } }}>
       <AppHeader />
-
-      <Box sx={{ maxWidth: 680, mx: "auto", px: { xs: 2, md: 4 }, pt: 4 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center" justifyContent="space-between" mb={3} flexWrap="wrap" useFlexGap>
-          <Stack direction="row" spacing={1.5} alignItems="center">
-            <DynamicFeedIcon color="primary" />
-            <Box>
-              <Typography variant="h5" fontWeight={700}>Community</Typography>
-              <Typography variant="body2" color="text.secondary">Recent activity and top summiteers</Typography>
-            </Box>
-          </Stack>
-          <Button
-            component={NextLink}
-            href="/users/search"
-            size="small"
-            startIcon={<PeopleIcon />}
-            variant="outlined"
-            sx={{ borderRadius: 2 }}
-          >
-            Find Climbers
-          </Button>
-        </Stack>
-
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}>
-          <Tab icon={<DynamicFeedIcon fontSize="small" />} iconPosition="start" label="Activity" />
-          {accessToken && <Tab icon={<PeopleIcon fontSize="small" />} iconPosition="start" label="Following" />}
-          <Tab icon={<LeaderboardIcon fontSize="small" />} iconPosition="start" label="Leaderboard" />
-        </Tabs>
-
-        {/* Leaderboard is always the last tab; adjust index based on auth */}
-        {tab === (accessToken ? 2 : 1) && <LeaderboardPanel />}
-        {tab === 0 && (
-          <EventList
-            events={events}
-            isLoading={isLoading}
-            emptyMessage="No activity yet"
-            emptyAction={
-              <Button variant="contained" component={NextLink} href="/mountains">Browse 14ers</Button>
-            }
-          />
-        )}
-        {accessToken && tab === 1 && <FollowingPanel />}
-      </Box>
+      <Suspense fallback={null}>
+        <FeedContent />
+      </Suspense>
     </Box>
   );
 }

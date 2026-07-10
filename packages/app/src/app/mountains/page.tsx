@@ -61,7 +61,11 @@ const SORTS = [
   { value: "difficulty_desc", label: "Hardest first" },
   { value: "name_asc", label: "A → Z" },
   { value: "popular_desc", label: "Most popular" },
+  { value: "conditions_desc", label: "Best conditions" },
 ];
+
+const CONDITIONS_LABELS = ["Excellent", "Good", "Fair", "Poor"] as const;
+type ConditionsFilter = typeof CONDITIONS_LABELS[number] | "";
 
 const CONDITIONS_COLOR: Record<string, "success" | "info" | "warning" | "error"> = {
   Excellent: "success",
@@ -86,6 +90,7 @@ export default function MountainsPage() {
   const [difficulty, setDifficulty] = useState<DifficultyFilter | "">("");
   const [sort, setSort] = useState("altitude_desc");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [conditionsFilter, setConditionsFilter] = useState<ConditionsFilter>("");
   const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
   const { data: mountains, isLoading } = trpc.mountain.list.useQuery({
@@ -119,19 +124,25 @@ export default function MountainsPage() {
     else if (statusFilter === "unsummited") list = list.filter((m) => !summitedIds.has(m.id));
     else if (statusFilter === "saved") list = list.filter((m) => savedIds.has(m.id));
 
+    if (conditionsFilter) {
+      list = list.filter((m) => allConditions?.[m.id]?.label === conditionsFilter);
+    }
+
+    const condScore = (id: string) => allConditions?.[id]?.score ?? -1;
     list.sort((a, b) => {
       switch (sort) {
-        case "altitude_asc":   return a.altitude - b.altitude;
-        case "difficulty_asc": return DIFFICULTY_ORDER[a.difficulty] - DIFFICULTY_ORDER[b.difficulty];
+        case "altitude_asc":    return a.altitude - b.altitude;
+        case "difficulty_asc":  return DIFFICULTY_ORDER[a.difficulty] - DIFFICULTY_ORDER[b.difficulty];
         case "difficulty_desc": return DIFFICULTY_ORDER[b.difficulty] - DIFFICULTY_ORDER[a.difficulty];
-        case "name_asc":       return a.name.localeCompare(b.name);
-        case "popular_desc":   return (b._count?.completions ?? 0) - (a._count?.completions ?? 0);
-        default:               return b.altitude - a.altitude;
+        case "name_asc":        return a.name.localeCompare(b.name);
+        case "popular_desc":    return (b._count?.completions ?? 0) - (a._count?.completions ?? 0);
+        case "conditions_desc": return condScore(b.id) - condScore(a.id);
+        default:                return b.altitude - a.altitude;
       }
     });
 
     return list;
-  }, [mountains, statusFilter, sort, summitedIds, savedIds]);
+  }, [mountains, statusFilter, sort, summitedIds, savedIds, conditionsFilter, allConditions]);
 
   const summitedCount = summitedIds.size;
 
@@ -140,11 +151,13 @@ export default function MountainsPage() {
     (range ? 1 : 0) +
     (difficulty ? 1 : 0) +
     (sort !== "altitude_desc" ? 1 : 0) +
-    (statusFilter !== "all" ? 1 : 0);
+    (statusFilter !== "all" ? 1 : 0) +
+    (conditionsFilter ? 1 : 0);
 
   function clearAllFilters() {
     setSearch("");
     setDebouncedSearch("");
+    setConditionsFilter("");
     setRange("");
     setDifficulty("");
     setSort("altitude_desc");
@@ -218,6 +231,17 @@ export default function MountainsPage() {
           </TextField>
           <TextField
             select
+            label="Conditions"
+            value={conditionsFilter}
+            onChange={(e) => setConditionsFilter(e.target.value as ConditionsFilter)}
+            fullWidth
+            slotProps={{ select: { displayEmpty: true } }}
+          >
+            <MenuItem value="">All Conditions</MenuItem>
+            {CONDITIONS_LABELS.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+          </TextField>
+          <TextField
+            select
             label="Sort by"
             value={sort}
             onChange={(e) => setSort(e.target.value)}
@@ -286,6 +310,10 @@ export default function MountainsPage() {
           <TextField select value={difficulty} onChange={(e) => setDifficulty(e.target.value as DifficultyFilter | "")} sx={{ flex: 1 }} slotProps={{ select: { displayEmpty: true } }}>
             {DIFFICULTIES.map((d) => <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>)}
           </TextField>
+          <TextField select value={conditionsFilter} onChange={(e) => setConditionsFilter(e.target.value as ConditionsFilter)} sx={{ flex: 1 }} slotProps={{ select: { displayEmpty: true } }}>
+            <MenuItem value="">All Conditions</MenuItem>
+            {CONDITIONS_LABELS.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+          </TextField>
           <TextField select value={sort} onChange={(e) => setSort(e.target.value)} sx={{ flex: 1 }} slotProps={{ select: { displayEmpty: true } }}>
             {SORTS.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
           </TextField>
@@ -319,6 +347,7 @@ export default function MountainsPage() {
           <Stack direction="row" spacing={1} mb={1.5} flexWrap="wrap" useFlexGap sx={{ display: { xs: "flex", sm: "none" } }}>
             {range && <Chip size="small" label={RANGES.find(r => r.value === range)?.label} onDelete={() => setRange("")} />}
             {difficulty && <Chip size="small" label={DIFFICULTIES.find(d => d.value === difficulty)?.label} onDelete={() => setDifficulty("")} />}
+            {conditionsFilter && <Chip size="small" label={conditionsFilter} color={CONDITIONS_COLOR[conditionsFilter]} onDelete={() => setConditionsFilter("")} />}
             {sort !== "altitude_desc" && <Chip size="small" label={SORTS.find(s => s.value === sort)?.label} onDelete={() => setSort("altitude_desc")} />}
             {statusFilter !== "all" && <Chip size="small" label={statusFilter} onDelete={() => setStatusFilter("all")} />}
           </Stack>
