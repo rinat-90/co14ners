@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "../lib/prisma.js";
+import { sendPushToUser } from "../push/push.service.js";
 
 export const reviewService = {
   async list(mountainId: string) {
@@ -54,6 +55,22 @@ export const reviewService = {
           mountainId: data.mountainId,
         })),
         skipDuplicates: true,
+      });
+
+      // Fetch actor name and mountain name for push payload
+      const [actor, mountain] = await Promise.all([
+        prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+        prisma.mountain.findUnique({ where: { id: data.mountainId }, select: { name: true } }),
+      ]);
+      const actorName = actor?.name ?? actor?.email.split("@")[0] ?? "Someone";
+      const mountainName = mountain?.name ?? "a peak you summited";
+      // Push to first 20 summiteers to avoid spam
+      summiteers.slice(0, 20).forEach((s) => {
+        sendPushToUser(s.userId, {
+          title: "New review on a peak you summited",
+          body: `${actorName} reviewed ${mountainName}`,
+          url: "/notifications",
+        }).catch(() => {});
       });
     }
 

@@ -5,6 +5,7 @@ const withPWAInit = require("@ducanh2912/next-pwa").default ?? require("@ducanh2
 
 const withPWA = withPWAInit({
   dest: "public",
+  customWorkerSrc: "src/worker",
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,

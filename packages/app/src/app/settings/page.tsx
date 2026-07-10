@@ -19,10 +19,13 @@ import LockIcon from "@mui/icons-material/Lock";
 import PersonIcon from "@mui/icons-material/Person";
 import Switch from "@mui/material/Switch";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
+import NotificationsIcon from "@mui/icons-material/Notifications";
+import NotificationsOffIcon from "@mui/icons-material/NotificationsOff";
 import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/lib/auth-context";
 import { useThemeMode } from "@/lib/theme-context";
 import { trpc } from "@/lib/trpc";
+import { subscribeToPush, unsubscribeFromPush, getPushPermission } from "@/lib/push";
 
 // ── Avatar helpers ─────────────────────────────────────────────────────────────
 
@@ -363,6 +366,117 @@ function ChangePasswordSection() {
   );
 }
 
+// ── Push Notifications Section ─────────────────────────────────────────────────
+
+function PushNotificationsSection() {
+  const utils = trpc.useUtils();
+  const { data: vapidData } = trpc.push.vapidKey.useQuery();
+  const { data: subData, isLoading } = trpc.push.isSubscribed.useQuery();
+  const subscribeMutation = trpc.push.subscribe.useMutation({ onSuccess: () => utils.push.isSubscribed.invalidate() });
+  const unsubscribeMutation = trpc.push.unsubscribe.useMutation({ onSuccess: () => utils.push.isSubscribed.invalidate() });
+
+  const [permission, setPermission] = useState<NotificationPermission | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    if ("Notification" in window) setPermission(Notification.permission);
+  }, []);
+
+  const supported = typeof window !== "undefined" && "Notification" in window && "serviceWorker" in navigator;
+  const subscribed = subData?.subscribed ?? false;
+
+  async function handleEnable() {
+    if (!vapidData?.publicKey) return;
+    setWorking(true);
+    setError(null);
+    try {
+      const perm = await getPushPermission();
+      setPermission(perm);
+      if (perm !== "granted") { setError("Permission denied. Allow notifications in your browser settings."); return; }
+      const sub = await subscribeToPush(vapidData.publicKey);
+      if (!sub) { setError("Could not create subscription."); return; }
+      const json = sub.toJSON();
+      await subscribeMutation.mutateAsync({
+        endpoint: sub.endpoint,
+        p256dh: (json.keys as Record<string, string>).p256dh,
+        auth: (json.keys as Record<string, string>).auth,
+      });
+    } catch (e: unknown) {
+      setError((e as Error).message ?? "Failed to enable notifications.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function handleDisable() {
+    setWorking(true);
+    setError(null);
+    try {
+      const endpoint = await unsubscribeFromPush();
+      if (endpoint) await unsubscribeMutation.mutateAsync({ endpoint });
+    } catch (e: unknown) {
+      setError((e as Error).message ?? "Failed to disable notifications.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  return (
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+      <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
+        <NotificationsIcon color="primary" />
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>Push Notifications</Typography>
+      </Stack>
+
+      {!supported ? (
+        <Alert severity="info">Push notifications are not supported in this browser.</Alert>
+      ) : permission === "denied" ? (
+        <Alert severity="warning">
+          Notifications are blocked. Enable them in your browser&apos;s site settings, then reload this page.
+        </Alert>
+      ) : (
+        <Stack spacing={2}>
+          <Typography variant="body2" color="text.secondary">
+            Get browser notifications for new followers, comments on your reports, and reviews on peaks you&apos;ve summited — even when the tab is closed.
+          </Typography>
+          {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
+          <Box>
+            {isLoading ? (
+              <CircularProgress size={24} />
+            ) : subscribed ? (
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Alert severity="success" icon={<NotificationsIcon />} sx={{ flex: 1, py: 0.5 }}>
+                  Push notifications are enabled on this device.
+                </Alert>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  size="small"
+                  startIcon={<NotificationsOffIcon />}
+                  onClick={handleDisable}
+                  disabled={working}
+                >
+                  Disable
+                </Button>
+              </Stack>
+            ) : (
+              <Button
+                variant="contained"
+                startIcon={working ? <CircularProgress size={16} color="inherit" /> : <NotificationsIcon />}
+                onClick={handleEnable}
+                disabled={working}
+              >
+                Enable push notifications
+              </Button>
+            )}
+          </Box>
+        </Stack>
+      )}
+    </Paper>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -384,6 +498,7 @@ export default function SettingsPage() {
         <Stack spacing={3}>
           <AvatarSection />
           <AppearanceSection />
+          <PushNotificationsSection />
           <EditProfileSection />
           <ChangeEmailSection />
           <ChangePasswordSection />

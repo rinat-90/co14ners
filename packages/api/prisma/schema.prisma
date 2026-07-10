@@ -89,6 +89,8 @@ model User {
   comments           Comment[]
   gearChecklists     GearChecklist[]
   mountainPhotos     MountainPhoto[]   @relation("MountainPhotoUploader")
+  pushSubscriptions  PushSubscription[]
+  mountainLists      MountainList[]
 }
 
 /// In-app notification
@@ -161,6 +163,7 @@ model Mountain {
   notifications  Notification[]
   gearChecklists GearChecklist[]
   photos         MountainPhoto[]
+  listItems      MountainListItem[]
 }
 
 /// Admin-uploaded photos for a mountain; one is flagged isMain → synced to Mountain.imageUrl
@@ -301,6 +304,49 @@ model GearChecklist {
   mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
 
   @@unique([userId, mountainId])
+}
+
+/// Web Push subscription for browser push notifications
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique @db.Text
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// User-created named list of mountains (e.g. "2025 Goals", "Done with kids")
+model MountainList {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items MountainListItem[]
+
+  @@index([userId])
+}
+
+model MountainListItem {
+  id         String   @id @default(cuid())
+  listId     String
+  mountainId String
+  addedAt    DateTime @default(now())
+
+  list     MountainList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  mountain Mountain     @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, mountainId])
+  @@index([listId])
 }
 
 /// A logged summit — users can summit the same mountain multiple times

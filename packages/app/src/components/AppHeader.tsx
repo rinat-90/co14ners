@@ -30,6 +30,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonIcon from "@mui/icons-material/Person";
 import BarChartIcon from "@mui/icons-material/BarChart";
+import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import PersonSearchIcon from "@mui/icons-material/PersonSearch";
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -313,6 +314,14 @@ export default function AppHeader() {
                 >
                   <ListItemIcon><BarChartIcon fontSize="small" /></ListItemIcon>
                   My Stats
+                </MenuItem>
+                <MenuItem
+                  component={NextLink}
+                  href="/lists"
+                  onClick={() => setMenuAnchor(null)}
+                >
+                  <ListItemIcon><PlaylistAddCheckIcon fontSize="small" /></ListItemIcon>
+                  My Lists
                 </MenuItem>
                 <MenuItem
                   component={NextLink}

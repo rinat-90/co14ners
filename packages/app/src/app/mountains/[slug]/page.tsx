@@ -51,6 +51,15 @@ import WbCloudyIcon from "@mui/icons-material/WbCloudy";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import BookmarkAddIcon from "@mui/icons-material/BookmarkAdd";
 import BookmarkAddedIcon from "@mui/icons-material/BookmarkAdded";
+import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
+import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
+import AddIcon from "@mui/icons-material/Add";
+import Popover from "@mui/material/Popover";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemText from "@mui/material/ListItemText";
+import ListItemSecondaryAction from "@mui/material/ListItemSecondaryAction";
+import Checkbox from "@mui/material/Checkbox";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
@@ -1855,6 +1864,8 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
   const [logOpen, setLogOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [photoManagerOpen, setPhotoManagerOpen] = useState(false);
+  const [listAnchor, setListAnchor] = useState<null | HTMLElement>(null);
+  const [newListName, setNewListName] = useState("");
   const [editingTrail, setEditingTrail] = useState<TrailForEdit | null>(null);
   const [selectedTrailId, setSelectedTrailId] = useState<string>("");
   const [achievementToast, setAchievementToast] = useState<string[]>([]);
@@ -1918,6 +1929,26 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
 
   const isFavorite = favData?.isFavorite ?? false;
   const favPending = addFavMutation.isPending || removeFavMutation.isPending;
+
+  const { data: myLists } = trpc.list.myLists.useQuery(undefined, { enabled: !!accessToken });
+  const { data: listsForMountain } = trpc.list.listsForMountain.useQuery(
+    { mountainId: id },
+    { enabled: !!accessToken && !!id && !!listAnchor }
+  );
+  const addToListMutation = trpc.list.addMountain.useMutation({
+    onSuccess: () => utils.list.listsForMountain.invalidate({ mountainId: id }),
+  });
+  const removeFromListMutation = trpc.list.removeMountain.useMutation({
+    onSuccess: () => utils.list.listsForMountain.invalidate({ mountainId: id }),
+  });
+  const createListMutation = trpc.list.create.useMutation({
+    onSuccess: (newList) => {
+      utils.list.myLists.invalidate();
+      addToListMutation.mutate({ listId: newList.id, mountainId: id });
+      setNewListName("");
+    },
+  });
+  const inAnyList = (listsForMountain?.length ?? 0) > 0;
 
   if (isError) {
     return (
@@ -2031,6 +2062,21 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                       {isFavorite ? <BookmarkAddedIcon /> : <BookmarkAddIcon />}
                     </IconButton>
                   </Tooltip>
+                  {accessToken && (
+                    <Tooltip title={inAnyList ? "In your lists" : "Add to list"}>
+                      <IconButton
+                        onClick={(e) => setListAnchor(e.currentTarget)}
+                        sx={{
+                          color: "white",
+                          bgcolor: inAnyList ? "rgba(16,185,129,0.35)" : "rgba(255,255,255,0.2)",
+                          backdropFilter: "blur(4px)",
+                          "&:hover": { bgcolor: inAnyList ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.3)" },
+                        }}
+                      >
+                        {inAnyList ? <PlaylistAddCheckIcon /> : <PlaylistAddIcon />}
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   <Tooltip title="Share">
                     <IconButton
                       onClick={() => {
@@ -2495,6 +2541,78 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
           mountainSlug={slug}
         />
       )}
+
+      {/* Add-to-list popover */}
+      <Popover
+        open={!!listAnchor}
+        anchorEl={listAnchor}
+        onClose={() => { setListAnchor(null); setNewListName(""); }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        slotProps={{ paper: { sx: { mt: 1, width: 280, borderRadius: 2 } } }}
+      >
+        <Box sx={{ px: 2, pt: 2, pb: 1 }}>
+          <Typography fontWeight={700} variant="body2" mb={1}>Add to list</Typography>
+          {(!myLists || myLists.length === 0) ? (
+            <Typography variant="caption" color="text.secondary">No lists yet — create one below.</Typography>
+          ) : (
+            <List disablePadding dense>
+              {myLists.map((lst) => {
+                const checked = listsForMountain?.includes(lst.id) ?? false;
+                return (
+                  <ListItem key={lst.id} disablePadding sx={{ borderRadius: 1, "&:hover": { bgcolor: "action.hover" } }}>
+                    <ListItemText
+                      primary={lst.name}
+                      secondary={`${lst._count.items} peak${lst._count.items !== 1 ? "s" : ""}`}
+                      primaryTypographyProps={{ variant: "body2", fontWeight: 500 }}
+                      secondaryTypographyProps={{ variant: "caption" }}
+                      sx={{ px: 1, py: 0.5, cursor: "pointer" }}
+                      onClick={() => checked
+                        ? removeFromListMutation.mutate({ listId: lst.id, mountainId: id })
+                        : addToListMutation.mutate({ listId: lst.id, mountainId: id })
+                      }
+                    />
+                    <ListItemSecondaryAction>
+                      <Checkbox
+                        size="small"
+                        checked={checked}
+                        onChange={() => checked
+                          ? removeFromListMutation.mutate({ listId: lst.id, mountainId: id })
+                          : addToListMutation.mutate({ listId: lst.id, mountainId: id })
+                        }
+                      />
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                );
+              })}
+            </List>
+          )}
+        </Box>
+        <Divider />
+        <Box sx={{ px: 2, py: 1.5, display: "flex", gap: 1 }}>
+          <TextField
+            size="small"
+            placeholder="New list name…"
+            value={newListName}
+            onChange={(e) => setNewListName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newListName.trim()) {
+                createListMutation.mutate({ name: newListName.trim() });
+              }
+            }}
+            sx={{ flex: 1 }}
+            inputProps={{ maxLength: 80 }}
+          />
+          <IconButton
+            size="small"
+            color="primary"
+            disabled={!newListName.trim() || createListMutation.isPending}
+            onClick={() => createListMutation.mutate({ name: newListName.trim() })}
+          >
+            <AddIcon />
+          </IconButton>
+        </Box>
+      </Popover>
     </Box>
   );
 }

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { prisma } from "../lib/prisma.js";
 import { TRPCError } from "@trpc/server";
+import { sendPushToUser } from "../push/push.service.js";
 
 const userSelect = { id: true, name: true, email: true, avatar: true } as const;
 
@@ -41,6 +42,12 @@ export const commentRouter = router({
             mountainId: report.mountainId,
           },
         });
+        const actorName = comment.user.name ?? comment.user.email.split("@")[0];
+        sendPushToUser(report.userId, {
+          title: "New comment on your report",
+          body: `${actorName}: ${input.body.slice(0, 80)}${input.body.length > 80 ? "…" : ""}`,
+          url: "/notifications",
+        }).catch(() => {});
       }
       return comment;
     }),

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, protectedProcedure, publicProcedure } from "../trpc.js";
 import { userService } from "./user.service.js";
 import { prisma } from "../lib/prisma.js";
+import { sendPushToUser } from "../push/push.service.js";
 import {
   logSummitSchema,
   updateCompletionSchema,
@@ -151,6 +152,12 @@ export const userRouter = router({
         await prisma.notification.create({
           data: { userId: input.userId, actorId: ctx.user.id, type: "FOLLOW" },
         });
+        const actorName = ctx.user.name ?? ctx.user.email.split("@")[0];
+        sendPushToUser(input.userId, {
+          title: "New follower",
+          body: `${actorName} started following you`,
+          url: `/users/${ctx.user.id}`,
+        }).catch(() => {});
       }
       return { ok: true };
     }),
