@@ -16,6 +16,67 @@ export const userRouter = router({
 
   stats: protectedProcedure.query(({ ctx }) => userService.getStats(ctx.user.id)),
 
+  climbingStats: protectedProcedure.query(async ({ ctx }) => {
+    const completions = await prisma.completion.findMany({
+      where: { userId: ctx.user.id },
+      orderBy: { completedAt: "asc" },
+      include: {
+        mountain: {
+          select: { altitude: true, range: true, elevationGain: true, difficulty: true, name: true },
+        },
+      },
+    });
+
+    // Summits per month (last 24 months)
+    const monthMap: Record<string, number> = {};
+    const elevMap: Record<string, number> = {};
+    completions.forEach((c) => {
+      const key = new Date(c.completedAt).toISOString().slice(0, 7); // "YYYY-MM"
+      monthMap[key] = (monthMap[key] ?? 0) + 1;
+      elevMap[key] = (elevMap[key] ?? 0) + (c.mountain.elevationGain ?? 0);
+    });
+
+    // Range breakdown
+    const rangeMap: Record<string, number> = {};
+    completions.forEach((c) => {
+      rangeMap[c.mountain.range] = (rangeMap[c.mountain.range] ?? 0) + 1;
+    });
+
+    // Difficulty breakdown (unique mountains)
+    const diffMap: Record<string, number> = {};
+    const seen = new Set<string>();
+    completions.forEach((c) => {
+      if (!seen.has(c.mountainId)) {
+        seen.add(c.mountainId);
+        diffMap[c.mountain.difficulty] = (diffMap[c.mountain.difficulty] ?? 0) + 1;
+      }
+    });
+
+    // Top 5 highest peaks summited
+    const topPeaks = [...completions]
+      .sort((a, b) => b.mountain.altitude - a.mountain.altitude)
+      .filter((c, i, arr) => arr.findIndex((x) => x.mountainId === c.mountainId) === i)
+      .slice(0, 5)
+      .map((c) => ({ name: c.mountain.name, altitude: c.mountain.altitude, date: c.completedAt }));
+
+    // Cumulative summits over time
+    let running = 0;
+    const cumulative = completions.map((c) => {
+      running++;
+      return { date: new Date(c.completedAt).toISOString().slice(0, 10), count: running };
+    });
+
+    return {
+      byMonth: Object.entries(monthMap)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, count]) => ({ month, count, elevationGained: elevMap[month] ?? 0 })),
+      byRange: Object.entries(rangeMap).map(([range, count]) => ({ range, count })),
+      byDifficulty: Object.entries(diffMap).map(([difficulty, count]) => ({ difficulty, count })),
+      topPeaks,
+      cumulative,
+    };
+  }),
+
   completions: protectedProcedure.query(({ ctx }) => userService.getCompletions(ctx.user.id)),
 
   favorites: protectedProcedure.query(({ ctx }) => userService.getFavorites(ctx.user.id)),

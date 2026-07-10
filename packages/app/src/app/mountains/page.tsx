@@ -6,6 +6,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import Chip from "@mui/material/Chip";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
@@ -17,7 +18,9 @@ import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import InputAdornment from "@mui/material/InputAdornment";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CloseIcon from "@mui/icons-material/Close";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import PeopleIcon from "@mui/icons-material/People";
 import SearchIcon from "@mui/icons-material/Search";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import { trpc } from "@/lib/trpc";
@@ -52,6 +55,7 @@ const SORTS = [
   { value: "difficulty_asc", label: "Easiest first" },
   { value: "difficulty_desc", label: "Hardest first" },
   { value: "name_asc", label: "A → Z" },
+  { value: "popular_desc", label: "Most popular" },
 ];
 
 const DIFFICULTY_ORDER: Record<string, number> = {
@@ -103,11 +107,12 @@ export default function MountainsPage() {
 
     list.sort((a, b) => {
       switch (sort) {
-        case "altitude_asc":  return a.altitude - b.altitude;
+        case "altitude_asc":   return a.altitude - b.altitude;
         case "difficulty_asc": return DIFFICULTY_ORDER[a.difficulty] - DIFFICULTY_ORDER[b.difficulty];
         case "difficulty_desc": return DIFFICULTY_ORDER[b.difficulty] - DIFFICULTY_ORDER[a.difficulty];
-        case "name_asc": return a.name.localeCompare(b.name);
-        default: return b.altitude - a.altitude;
+        case "name_asc":       return a.name.localeCompare(b.name);
+        case "popular_desc":   return (b._count?.completions ?? 0) - (a._count?.completions ?? 0);
+        default:               return b.altitude - a.altitude;
       }
     });
 
@@ -115,6 +120,22 @@ export default function MountainsPage() {
   }, [mountains, statusFilter, sort, summitedIds, savedIds]);
 
   const summitedCount = summitedIds.size;
+
+  const activeFilterCount =
+    (search ? 1 : 0) +
+    (range ? 1 : 0) +
+    (difficulty ? 1 : 0) +
+    (sort !== "altitude_desc" ? 1 : 0) +
+    (statusFilter !== "all" ? 1 : 0);
+
+  function clearAllFilters() {
+    setSearch("");
+    setDebouncedSearch("");
+    setRange("");
+    setDifficulty("");
+    setSort("altitude_desc");
+    setStatusFilter("all");
+  }
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", pb: { xs: 10, md: 4 } }}>
@@ -197,6 +218,24 @@ export default function MountainsPage() {
           </TextField>
         </Stack>
 
+        {/* Active filter indicator for logged-out users */}
+        {!accessToken && activeFilterCount > 0 && (
+          <Box mb={2}>
+            <Chip
+              size="small"
+              label={`Clear ${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""}`}
+              onDelete={clearAllFilters}
+              deleteIcon={<CloseIcon />}
+              onClick={clearAllFilters}
+              color="primary"
+              variant="outlined"
+            />
+            <Typography component="span" variant="caption" color="text.secondary" ml={1.5}>
+              {filtered.length} peak{filtered.length !== 1 ? "s" : ""}
+            </Typography>
+          </Box>
+        )}
+
         {/* Status filter chips — only when logged in */}
         {accessToken && (
           <Stack direction="row" spacing={1} mb={3} flexWrap="wrap" useFlexGap>
@@ -226,6 +265,17 @@ export default function MountainsPage() {
             <Typography variant="caption" color="text.secondary" alignSelf="center">
               {filtered.length} peak{filtered.length !== 1 ? "s" : ""}
             </Typography>
+            {activeFilterCount > 0 && (
+              <Chip
+                size="small"
+                label={`Clear ${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""}`}
+                onDelete={clearAllFilters}
+                deleteIcon={<CloseIcon />}
+                onClick={clearAllFilters}
+                color="primary"
+                variant="outlined"
+              />
+            )}
           </Stack>
         )}
 
@@ -286,13 +336,23 @@ export default function MountainsPage() {
                           </Typography>
 
                           {m.roundTripMiles && m.elevationGain && (
-                            <Stack direction="row" spacing={2} mt={1.5}>
+                            <Stack direction="row" spacing={2} mt={1.5} flexWrap="wrap" useFlexGap>
                               <Typography variant="body2" color="text.secondary">🥾 {m.roundTripMiles} mi</Typography>
                               <Typography variant="body2" color="text.secondary">↑ {m.elevationGain.toLocaleString()} ft gain</Typography>
                               {m.estimatedHours && (
                                 <Typography variant="body2" color="text.secondary">⏱ {m.estimatedHours}h</Typography>
                               )}
                             </Stack>
+                          )}
+                          {m._count && m._count.completions > 0 && (
+                            <Tooltip title={`${m._count.completions} summit${m._count.completions !== 1 ? "s" : ""} logged`}>
+                              <Stack direction="row" spacing={0.5} alignItems="center" mt={1}>
+                                <PeopleIcon sx={{ fontSize: "0.8rem", color: "text.disabled" }} />
+                                <Typography variant="caption" color="text.disabled">
+                                  {m._count.completions}
+                                </Typography>
+                              </Stack>
+                            </Tooltip>
                           )}
                         </CardContent>
                       </CardActionArea>

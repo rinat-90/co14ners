@@ -26,6 +26,7 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonIcon from "@mui/icons-material/Person";
+import BarChartIcon from "@mui/icons-material/BarChart";
 import PersonSearchIcon from "@mui/icons-material/PersonSearch";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
@@ -272,6 +273,14 @@ export default function AppHeader() {
                 >
                   <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
                   Profile
+                </MenuItem>
+                <MenuItem
+                  component={NextLink}
+                  href="/stats"
+                  onClick={() => setMenuAnchor(null)}
+                >
+                  <ListItemIcon><BarChartIcon fontSize="small" /></ListItemIcon>
+                  My Stats
                 </MenuItem>
                 <MenuItem
                   component={NextLink}

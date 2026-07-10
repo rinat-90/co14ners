@@ -25,6 +25,7 @@ export const mountainService = {
           name: { contains: filters.search, mode: "insensitive" },
         }),
       },
+      include: { _count: { select: { completions: true, reviews: true } } },
       orderBy: { altitude: "desc" },
     });
   },

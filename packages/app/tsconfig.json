@@ -16,6 +16,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@prisma/client": [
+        "../api/src/generated/prisma"
       ]
     },
     "allowJs": true,
