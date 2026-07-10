@@ -114,7 +114,8 @@ export const userRouter = router({
       z.object({
         name: z.string().min(1).max(80).optional(),
         bio: z.string().max(300).optional(),
-        avatar: z.string().url().nullable().optional(),
+        // Accepts a URL or a base64 data URI (capped at ~150 KB encoded)
+        avatar: z.string().max(204800).nullable().optional(),
       })
     )
     .mutation(({ ctx, input }) => userService.updateProfile(ctx.user.id, input)),

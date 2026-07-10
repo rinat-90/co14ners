@@ -1,15 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
+import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import CameraAltIcon from "@mui/icons-material/CameraAlt";
+import DeleteIcon from "@mui/icons-material/Delete";
 import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
 import PersonIcon from "@mui/icons-material/Person";
@@ -19,6 +23,131 @@ import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/lib/auth-context";
 import { useThemeMode } from "@/lib/theme-context";
 import { trpc } from "@/lib/trpc";
+
+// ── Avatar helpers ─────────────────────────────────────────────────────────────
+
+function resizeImageToDataUrl(file: File, size = 200): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d")!;
+      // Center-crop to square
+      const s = Math.min(img.width, img.height);
+      const sx = (img.width - s) / 2;
+      const sy = (img.height - s) / 2;
+      ctx.drawImage(img, sx, sy, s, s, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+// ── Avatar Section ─────────────────────────────────────────────────────────────
+
+function AvatarSection() {
+  const utils = trpc.useUtils();
+  const { user: authUser, setUser } = useAuth();
+  const { data: me } = trpc.user.me.useQuery();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const mutation = trpc.user.updateProfile.useMutation({
+    onSuccess: (updated) => {
+      utils.user.me.invalidate();
+      if (authUser) setUser({ ...authUser, avatar: updated.avatar ?? null });
+      setPreview(null);
+    },
+    onError: (e) => setError(e.message),
+  });
+
+  const currentAvatar = preview ?? me?.avatar ?? null;
+  const displayName = me?.name ?? authUser?.email?.split("@")[0] ?? "?";
+
+  async function handleFile(file: File) {
+    setError(null);
+    if (!file.type.startsWith("image/")) { setError("Please select an image file."); return; }
+    if (file.size > 5 * 1024 * 1024) { setError("Image must be under 5 MB."); return; }
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 200);
+      setPreview(dataUrl);
+      mutation.mutate({ avatar: dataUrl });
+    } catch {
+      setError("Could not process image.");
+    }
+  }
+
+  return (
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+      <Stack direction="row" spacing={1.5} alignItems="center" mb={2.5}>
+        <CameraAltIcon color="primary" />
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>Profile Photo</Typography>
+      </Stack>
+
+      <Stack direction="row" spacing={3} alignItems="center">
+        <Box sx={{ position: "relative" }}>
+          <Avatar
+            src={currentAvatar ?? undefined}
+            sx={{ width: 80, height: 80, fontSize: 28, fontWeight: 700, bgcolor: "primary.main" }}
+          >
+            {!currentAvatar && displayName.slice(0, 2).toUpperCase()}
+          </Avatar>
+          {mutation.isPending && (
+            <CircularProgress
+              size={84}
+              sx={{ position: "absolute", top: -2, left: -2, color: "primary.main", zIndex: 1 }}
+            />
+          )}
+        </Box>
+
+        <Stack spacing={1} flex={1}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<CameraAltIcon />}
+              onClick={() => fileRef.current?.click()}
+              disabled={mutation.isPending}
+              sx={{ borderRadius: 2 }}
+            >
+              {currentAvatar ? "Change photo" : "Upload photo"}
+            </Button>
+            {me?.avatar && (
+              <Button
+                size="small"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => mutation.mutate({ avatar: null })}
+                disabled={mutation.isPending}
+                sx={{ borderRadius: 2 }}
+              >
+                Remove
+              </Button>
+            )}
+          </Stack>
+          <Typography variant="caption" color="text.secondary">
+            JPG, PNG or WebP · max 5 MB · cropped to square
+          </Typography>
+          {error && <Alert severity="error" sx={{ py: 0 }}>{error}</Alert>}
+        </Stack>
+      </Stack>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+      />
+    </Paper>
+  );
+}
 
 // ── Appearance ─────────────────────────────────────────────────────────────────
 
@@ -253,6 +382,7 @@ export default function SettingsPage() {
           Settings
         </Typography>
         <Stack spacing={3}>
+          <AvatarSection />
           <AppearanceSection />
           <EditProfileSection />
           <ChangeEmailSection />
