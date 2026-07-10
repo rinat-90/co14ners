@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
-import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { trpc } from "./trpc";
-import { theme } from "./theme";
+import { AppThemeProvider } from "./theme-context";
 import Box from "@mui/material/Box";
 import BottomNav from "@/components/BottomNav";
 import { AuthProvider, useAuth } from "./auth-context";
@@ -79,11 +78,11 @@ function TrpcProvider({ children }: { children: React.ReactNode }) {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider theme={theme}>
+    <AppThemeProvider>
       <CssBaseline />
       <AuthProvider>
         <TrpcProvider>{children}</TrpcProvider>
       </AuthProvider>
-    </ThemeProvider>
+    </AppThemeProvider>
   );
 }

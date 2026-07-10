@@ -20,6 +20,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import DynamicFeedIcon from "@mui/icons-material/DynamicFeed";
 import GetAppIcon from "@mui/icons-material/GetApp";
 import IosShareIcon from "@mui/icons-material/IosShare";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import LightModeIcon from "@mui/icons-material/LightMode";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MapIcon from "@mui/icons-material/Map";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
@@ -31,6 +33,7 @@ import PersonSearchIcon from "@mui/icons-material/PersonSearch";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import { useAuth } from "@/lib/auth-context";
+import { useThemeMode } from "@/lib/theme-context";
 import { trpc } from "@/lib/trpc";
 
 function displayName(user: { name?: string | null; email: string } | null) {
@@ -155,6 +158,7 @@ function isIosSafari() {
 
 export default function AppHeader() {
   const { accessToken, user, logout } = useAuth();
+  const { mode, toggle: toggleTheme } = useThemeMode();
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIosBanner, setShowIosBanner] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -245,6 +249,11 @@ export default function AppHeader() {
 
           {accessToken ? (
             <>
+              <Tooltip title={mode === "dark" ? "Light mode" : "Dark mode"}>
+                <IconButton onClick={toggleTheme} size="small" color="inherit">
+                  {mode === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+                </IconButton>
+              </Tooltip>
               <NotificationBell />
               <Button
                 startIcon={
