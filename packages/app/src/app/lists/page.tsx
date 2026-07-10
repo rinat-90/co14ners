@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from "react";
 import NextLink from "next/link";
-import { useRouter } from "next/navigation";
 import Avatar from "@mui/material/Avatar";
-import AvatarGroup from "@mui/material/AvatarGroup";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";

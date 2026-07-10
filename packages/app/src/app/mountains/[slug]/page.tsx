@@ -778,13 +778,11 @@ function TripReportDialog({
   open,
   onClose,
   mountainId,
-  mountainSlug,
   trails,
 }: {
   open: boolean;
   onClose: () => void;
   mountainId: string;
-  mountainSlug: string;
   trails: { id: string; name: string }[];
 }) {
   const utils = trpc.useUtils();
@@ -1146,12 +1144,10 @@ function EditTripReportDialog({
 
 function TripReportsSection({
   mountainId,
-  mountainSlug,
   accessToken,
   trails,
 }: {
   mountainId: string;
-  mountainSlug: string;
   accessToken: string | null;
   trails: { id: string; name: string }[];
 }) {
@@ -1322,7 +1318,6 @@ function TripReportsSection({
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         mountainId={mountainId}
-        mountainSlug={mountainSlug}
         trails={trails}
       />
       <EditTripReportDialog
@@ -1862,10 +1857,6 @@ function WeatherSection({ latitude, longitude }: { latitude: number; longitude: 
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
-function toSlug(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
 export default function MountainDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const { accessToken, user } = useAuth();
@@ -2320,7 +2311,6 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
             {/* Trip Reports */}
             <TripReportsSection
               mountainId={id}
-              mountainSlug={slug}
               accessToken={accessToken}
               trails={trails.map((t) => ({ id: t.id, name: t.name }))}
             />

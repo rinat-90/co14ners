@@ -10,7 +10,6 @@ import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
-import Divider from "@mui/material/Divider";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Grid from "@mui/material/Grid";
 import IconButton from "@mui/material/IconButton";
@@ -31,7 +30,6 @@ import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
-import RangeLabel from "@/components/mountains/RangeLabel";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
