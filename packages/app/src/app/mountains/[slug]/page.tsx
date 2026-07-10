@@ -67,6 +67,7 @@ import RangeLabel from "@/components/mountains/RangeLabel";
 import TrailMap from "@/components/mountains/TrailMap";
 import ElevationProfile from "@/components/mountains/ElevationProfile";
 import GearChecklist from "@/components/mountains/GearChecklist";
+import PhotoGallery from "@/components/mountains/PhotoGallery";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
@@ -1020,12 +1021,21 @@ function TripReportsSection({
   const utils = trpc.useUtils();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ReportForEdit | null>(null);
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
 
   const { data: reports, isLoading } = trpc.tripReport.list.useQuery({ mountainId });
 
   const deleteMutation = trpc.tripReport.delete.useMutation({
     onSuccess: () => utils.tripReport.list.invalidate({ mountainId }),
   });
+
+  const galleryPhotos = (reports ?? [])
+    .filter((r) => !!r.photoUrl)
+    .map((r) => ({
+      url: r.photoUrl!,
+      caption: r.title,
+      author: r.user.name ?? r.user.email.split("@")[0],
+    }));
 
   return (
     <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mt: 3 }}>
@@ -1109,17 +1119,17 @@ function TripReportsSection({
                     </Typography>
                     {report.photoUrl && (
                       <Box
-                        component="a"
-                        href={report.photoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        sx={{ display: "block", mt: 1.5, borderRadius: 2, overflow: "hidden", lineHeight: 0 }}
+                        onClick={() => {
+                          const idx = galleryPhotos.findIndex((p) => p.url === report.photoUrl);
+                          setGalleryIndex(idx >= 0 ? idx : 0);
+                        }}
+                        sx={{ display: "block", mt: 1.5, borderRadius: 2, overflow: "hidden", lineHeight: 0, cursor: "zoom-in", "&:hover img": { filter: "brightness(0.9)" } }}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={report.photoUrl}
                           alt="Trip photo"
-                          style={{ width: "100%", maxHeight: 320, objectFit: "cover", display: "block" }}
+                          style={{ width: "100%", maxHeight: 320, objectFit: "cover", display: "block", transition: "filter 0.2s" }}
                         />
                       </Box>
                     )}
@@ -1173,6 +1183,13 @@ function TripReportsSection({
         onClose={() => setEditTarget(null)}
         report={editTarget}
         mountainId={mountainId}
+      />
+      <PhotoGallery
+        photos={galleryPhotos}
+        open={galleryIndex !== null}
+        index={galleryIndex ?? 0}
+        onClose={() => setGalleryIndex(null)}
+        onIndexChange={setGalleryIndex}
       />
     </Paper>
   );
