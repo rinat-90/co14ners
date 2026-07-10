@@ -3,6 +3,7 @@ import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { prisma } from "../lib/prisma.js";
 import { TRPCError } from "@trpc/server";
 import { sendPushToUser } from "../push/push.service.js";
+import { sendCommentEmail } from "../lib/email.js";
 
 const userSelect = { id: true, name: true, email: true, avatar: true } as const;
 
@@ -47,6 +48,16 @@ export const commentRouter = router({
           title: "New comment on your report",
           body: `${actorName}: ${input.body.slice(0, 80)}${input.body.length > 80 ? "…" : ""}`,
           url: "/notifications",
+        }).catch(() => {});
+        // Email notification (fire-and-forget)
+        Promise.all([
+          prisma.user.findUnique({ where: { id: report.userId }, select: { email: true } }),
+          prisma.mountain.findUnique({ where: { id: report.mountainId }, select: { name: true } }),
+        ]).then(([author, mountain]) => {
+          if (author && mountain) {
+            const slug = mountain.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+            sendCommentEmail(author.email, actorName, input.body, mountain.name, slug).catch(() => {});
+          }
         }).catch(() => {});
       }
       return comment;

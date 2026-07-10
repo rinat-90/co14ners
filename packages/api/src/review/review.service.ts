@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../push/push.service.js";
+import { sendReviewEmail } from "../lib/email.js";
 
 export const reviewService = {
   async list(mountainId: string) {
@@ -64,14 +65,28 @@ export const reviewService = {
       ]);
       const actorName = actor?.name ?? actor?.email.split("@")[0] ?? "Someone";
       const mountainName = mountain?.name ?? "a peak you summited";
-      // Push to first 20 summiteers to avoid spam
-      summiteers.slice(0, 20).forEach((s) => {
+      const mountainSlug = mountain?.name
+        ? mountain.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+        : "";
+      // Push + email to first 20 summiteers to avoid spam
+      const capped = summiteers.slice(0, 20);
+      capped.forEach((s) => {
         sendPushToUser(s.userId, {
           title: "New review on a peak you summited",
           body: `${actorName} reviewed ${mountainName}`,
           url: "/notifications",
         }).catch(() => {});
       });
+      if (mountainSlug) {
+        prisma.user.findMany({
+          where: { id: { in: capped.map((s) => s.userId) } },
+          select: { email: true },
+        }).then((users) => {
+          users.forEach((u) => {
+            sendReviewEmail(u.email, actorName, data.rating, mountainName, mountainSlug).catch(() => {});
+          });
+        }).catch(() => {});
+      }
     }
 
     return review;

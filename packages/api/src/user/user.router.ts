@@ -3,6 +3,7 @@ import { router, protectedProcedure, publicProcedure } from "../trpc.js";
 import { userService } from "./user.service.js";
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../push/push.service.js";
+import { sendFollowEmail } from "../lib/email.js";
 import {
   logSummitSchema,
   updateCompletionSchema,
@@ -158,6 +159,12 @@ export const userRouter = router({
           body: `${actorName} started following you`,
           url: `/users/${ctx.user.id}`,
         }).catch(() => {});
+        // Email notification (fire-and-forget)
+        prisma.user.findUnique({ where: { id: input.userId }, select: { email: true } })
+          .then((followed) => {
+            if (followed) sendFollowEmail(followed.email, actorName, ctx.user.id).catch(() => {});
+          })
+          .catch(() => {});
       }
       return { ok: true };
     }),
