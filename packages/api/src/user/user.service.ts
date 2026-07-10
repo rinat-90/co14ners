@@ -177,7 +177,7 @@ export const userService = {
         where: { userId, isPrivate: false },
         orderBy: { completedAt: "desc" },
         include: {
-          mountain: { select: { id: true, name: true, altitude: true, difficulty: true, range: true } },
+          mountain: { select: { id: true, name: true, altitude: true, difficulty: true, range: true, elevationGain: true } },
           trail: { select: { name: true } },
         },
       }),
@@ -188,7 +188,7 @@ export const userService = {
     ]);
 
     const uniqueMountainIds = new Set(completions.map((c) => c.mountainId));
-    const totalElevationGained = completions.reduce((sum, c) => sum + (c.mountain.altitude ?? 0), 0);
+    const totalElevationGained = completions.reduce((sum, c) => sum + (c.mountain.elevationGain ?? 0), 0);
     const highestPeak = completions.reduce((max, c) => Math.max(max, c.mountain.altitude), 0);
     const rangesCovered = new Set(completions.map((c) => c.mountain.range)).size;
 

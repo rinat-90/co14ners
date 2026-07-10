@@ -214,6 +214,26 @@ export const mountainService = {
     return result;
   },
 
+  async topConditions(limit = 5) {
+    const summary = await this.allConditionsSummary();
+    if (Object.keys(summary).length === 0) return [];
+
+    // Sort by score descending, take top N
+    const topIds = Object.entries(summary)
+      .sort((a, b) => b[1].score - a[1].score)
+      .slice(0, limit)
+      .map(([id]) => id);
+
+    const mountains = await prisma.mountain.findMany({
+      where: { id: { in: topIds } },
+      select: { id: true, name: true, altitude: true, difficulty: true, range: true },
+    });
+
+    return mountains
+      .map((m) => ({ ...m, conditions: summary[m.id] }))
+      .sort((a, b) => b.conditions.score - a.conditions.score);
+  },
+
   async search(query: string) {
     return prisma.mountain.findMany({
       where: { name: { contains: query, mode: "insensitive" } },

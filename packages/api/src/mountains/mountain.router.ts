@@ -37,6 +37,11 @@ export const mountainRouter = router({
   allConditions: publicProcedure
     .query(() => mountainService.allConditionsSummary()),
 
+  // Top N mountains by current conditions score (used by home page widget)
+  topConditions: publicProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(10).default(5) }))
+    .query(({ input }) => mountainService.topConditions(input.limit)),
+
   search: publicProcedure
     .input(z.object({ query: z.string().min(1).max(80) }))
     .query(({ input }) => mountainService.search(input.query)),

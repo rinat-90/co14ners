@@ -29,6 +29,29 @@ export const listRouter = router({
     });
   }),
 
+  /** Browse all public lists — for the explore/browse page */
+  explore: publicProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(40), search: z.string().max(80).optional() }))
+    .query(async ({ input }) => {
+      return prisma.mountainList.findMany({
+        where: {
+          isPublic: true,
+          ...(input.search && { name: { contains: input.search, mode: "insensitive" } }),
+        },
+        orderBy: { updatedAt: "desc" },
+        take: input.limit,
+        include: {
+          user: { select: { id: true, name: true, email: true, avatar: true } },
+          _count: { select: { items: true } },
+          items: {
+            take: 4,
+            orderBy: { addedAt: "asc" },
+            include: { mountain: { select: { imageUrl: true, name: true, difficulty: true } } },
+          },
+        },
+      });
+    }),
+
   /** Public lists by a specific user (for public profiles) */
   byUser: publicProcedure
     .input(z.object({ userId: z.string() }))

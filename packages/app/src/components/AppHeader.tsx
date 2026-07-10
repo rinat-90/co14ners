@@ -321,7 +321,7 @@ export default function AppHeader() {
                   onClick={() => setMenuAnchor(null)}
                 >
                   <ListItemIcon><PlaylistAddCheckIcon fontSize="small" /></ListItemIcon>
-                  My Lists
+                  Lists
                 </MenuItem>
                 <MenuItem
                   component={NextLink}
