@@ -124,6 +124,7 @@ type FeedEvent = {
   trail: { name: string } | null;
   rating: number | null;
   reportTitle: string | null;
+  reportId: string | null;
   conditions: string | null;
 };
 
@@ -244,7 +245,15 @@ function EventList({ events, isLoading, emptyMessage, emptyAction }: {
               )}
 
               {event.type === "report" && event.reportTitle && (
-                <Typography variant="body2" fontWeight={600} color="text.primary" mt={0.5}>
+                <Typography
+                  component={event.reportId ? NextLink : "span"}
+                  href={event.reportId ? `/reports/${event.reportId}` : undefined}
+                  variant="body2"
+                  fontWeight={600}
+                  color="text.primary"
+                  mt={0.5}
+                  sx={{ display: "block", textDecoration: "none", "&:hover": event.reportId ? { color: "primary.main" } : {} }}
+                >
                   &ldquo;{event.reportTitle}&rdquo;
                 </Typography>
               )}

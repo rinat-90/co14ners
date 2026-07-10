@@ -1247,7 +1247,16 @@ function TripReportsSection({
                       )}
                       <Typography variant="caption" color="text.disabled">{fmtDate(report.createdAt)}</Typography>
                     </Box>
-                    <Typography variant="body2" fontWeight={600} mb={0.5}>{report.title}</Typography>
+                    <Typography
+                      component={NextLink}
+                      href={`/reports/${report.id}`}
+                      variant="body2"
+                      fontWeight={600}
+                      mb={0.5}
+                      sx={{ textDecoration: "none", color: "text.primary", display: "block", "&:hover": { color: "primary.main" } }}
+                    >
+                      {report.title}
+                    </Typography>
                     <Typography
                       variant="body2"
                       color="text.secondary"

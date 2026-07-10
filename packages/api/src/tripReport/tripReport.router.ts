@@ -46,6 +46,25 @@ export const tripReportRouter = router({
     });
   }),
 
+  // Get a single public report by id
+  get: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      const report = await prisma.tripReport.findUnique({
+        where: { id: input.id },
+        include: {
+          user: { select: userSelect },
+          mountain: { select: { ...mountainSelect, range: true } },
+          trail: { select: trailSelect },
+          _count: { select: { comments: true } },
+        },
+      });
+      if (!report || !report.isPublic) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Report not found" });
+      }
+      return report;
+    }),
+
   // Create a new trip report
   create: protectedProcedure
     .input(createSchema)
