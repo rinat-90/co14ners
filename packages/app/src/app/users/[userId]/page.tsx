@@ -20,6 +20,7 @@ import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonRemoveIcon from "@mui/icons-material/PersonRemove";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
 import { useAuth } from "@/lib/auth-context";
@@ -55,6 +56,7 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
 
   const { data, isLoading, isError } = trpc.user.publicProfile.useQuery({ userId });
   const { data: tripReports } = trpc.tripReport.byUser.useQuery({ userId }, { enabled: !!userId });
+  const { data: publicLists } = trpc.list.byUser.useQuery({ userId }, { enabled: !!userId });
   const { data: followCounts } = trpc.user.followCounts.useQuery({ userId }, { enabled: !!userId });
   const { data: followStatus } = trpc.user.isFollowing.useQuery(
     { userId },
@@ -282,6 +284,36 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
                   </Box>
                 );
               })}
+            </Stack>
+          </Paper>
+        )}
+
+        {/* Public lists */}
+        {publicLists && publicLists.length > 0 && (
+          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 3 }}>
+            <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+              <PlaylistAddCheckIcon color="primary" fontSize="small" />
+              <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.1rem" } }}>
+                Lists ({publicLists.length})
+              </Typography>
+            </Stack>
+            <Stack spacing={1}>
+              {publicLists.map((lst) => (
+                <Box
+                  key={lst.id}
+                  component={NextLink}
+                  href={`/lists/${lst.id}`}
+                  sx={{
+                    display: "flex", alignItems: "center", gap: 2, py: 1.25, px: 1.5,
+                    borderRadius: 2, textDecoration: "none", color: "inherit",
+                    "&:hover": { bgcolor: "action.hover" },
+                  }}
+                >
+                  <PlaylistAddCheckIcon sx={{ color: "text.secondary", fontSize: "1.1rem", flexShrink: 0 }} />
+                  <Typography variant="body2" fontWeight={600} sx={{ flex: 1 }} noWrap>{lst.name}</Typography>
+                  <Chip label={`${lst._count.items} peak${lst._count.items !== 1 ? "s" : ""}`} size="small" variant="outlined" />
+                </Box>
+              ))}
             </Stack>
           </Paper>
         )}

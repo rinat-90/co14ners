@@ -41,6 +41,7 @@ import MapIcon from "@mui/icons-material/Map";
 import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
@@ -486,6 +487,7 @@ export default function ProfilePage() {
   const { data: favorites, isLoading: favoritesLoading } = trpc.user.favorites.useQuery(undefined, { enabled: !!accessToken });
   const { data: achievements } = trpc.user.achievements.useQuery(undefined, { enabled: !!accessToken });
   const { data: myReports, isLoading: reportsLoading } = trpc.tripReport.myReports.useQuery(undefined, { enabled: !!accessToken });
+  const { data: myLists, isLoading: listsLoading } = trpc.list.myLists.useQuery(undefined, { enabled: !!accessToken });
 
   const earnedTypes = new Set(achievements?.map((a) => a.type) ?? []);
   const earnedCount = earnedTypes.size;
@@ -692,6 +694,7 @@ export default function ProfilePage() {
             <Tab label="Stats" />
             <Tab label={`Achievements${earnedCount > 0 ? ` (${earnedCount})` : ""}`} />
             <Tab label={`Reports${myReports && myReports.length > 0 ? ` (${myReports.length})` : ""}`} />
+            <Tab label={`Lists${myLists && myLists.length > 0 ? ` (${myLists.length})` : ""}`} />
           </Tabs>
 
           <Box sx={{ p: { xs: 2, md: 3 } }}>
@@ -908,6 +911,58 @@ export default function ProfilePage() {
                       </Grid>
                     ))}
                   </Grid>
+                )}
+              </>
+            )}
+
+            {/* ── Tab 5: Lists ── */}
+            {tab === 5 && (
+              <>
+                {listsLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} variant="rounded" height={80} sx={{ mb: 2, borderRadius: 2 }} />
+                  ))
+                ) : myLists?.length === 0 ? (
+                  <Box sx={{ textAlign: "center", py: 8 }}>
+                    <PlaylistAddCheckIcon sx={{ fontSize: 64, color: "text.disabled", mb: 2 }} />
+                    <Typography variant="h6" gutterBottom>No lists yet</Typography>
+                    <Typography color="text.secondary" mb={3}>
+                      Create lists to organise peaks by season, difficulty, or any goal.
+                    </Typography>
+                    <Button variant="contained" component={NextLink} href="/lists">Manage lists</Button>
+                  </Box>
+                ) : (
+                  <Stack spacing={1.5}>
+                    {myLists?.map((lst) => (
+                      <Paper
+                        key={lst.id}
+                        component={NextLink}
+                        href={`/lists/${lst.id}`}
+                        variant="outlined"
+                        sx={{
+                          p: 2, borderRadius: 2, textDecoration: "none", color: "inherit", display: "flex",
+                          alignItems: "center", gap: 2, "&:hover": { bgcolor: "action.hover" },
+                        }}
+                      >
+                        <PlaylistAddCheckIcon color="primary" />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography fontWeight={600} noWrap>{lst.name}</Typography>
+                            {!lst.isPublic && <LockIcon sx={{ fontSize: 14, color: "text.disabled" }} />}
+                          </Stack>
+                          {lst.description && (
+                            <Typography variant="caption" color="text.secondary" noWrap>{lst.description}</Typography>
+                          )}
+                        </Box>
+                        <Chip label={`${lst._count.items} peak${lst._count.items !== 1 ? "s" : ""}`} size="small" variant="outlined" />
+                      </Paper>
+                    ))}
+                    <Box sx={{ pt: 1 }}>
+                      <Button variant="outlined" size="small" component={NextLink} href="/lists">
+                        Manage all lists
+                      </Button>
+                    </Box>
+                  </Stack>
                 )}
               </>
             )}
