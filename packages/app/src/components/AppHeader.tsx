@@ -18,6 +18,7 @@ import Typography from "@mui/material/Typography";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import CloseIcon from "@mui/icons-material/Close";
 import DynamicFeedIcon from "@mui/icons-material/DynamicFeed";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import GetAppIcon from "@mui/icons-material/GetApp";
 import IosShareIcon from "@mui/icons-material/IosShare";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
@@ -264,6 +265,15 @@ export default function AppHeader() {
             sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
           >
             Feed
+          </Button>
+          <Button
+            component={NextLink}
+            href="/leaderboard"
+            color="inherit"
+            startIcon={<EmojiEventsIcon />}
+            sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
+          >
+            Leaderboard
           </Button>
 
           {accessToken ? (

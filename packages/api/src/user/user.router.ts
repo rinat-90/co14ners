@@ -220,4 +220,53 @@ export const userRouter = router({
       });
       return rows.map((r) => r.following);
     }),
+
+  leaderboard: publicProcedure
+    .input(z.object({ metric: z.enum(["summits", "elevation", "unique"]).default("summits"), limit: z.number().int().min(1).max(100).default(25) }))
+    .query(async ({ input }) => {
+      // Fetch all non-private completions with mountain elevationGain
+      const completions = await prisma.completion.findMany({
+        where: { isPrivate: false },
+        select: {
+          userId: true,
+          mountainId: true,
+          mountain: { select: { elevationGain: true, altitude: true } },
+        },
+      });
+
+      // Aggregate per user
+      const byUser = new Map<string, { totalSummits: number; totalElevation: number; uniquePeaks: Set<string> }>();
+      for (const c of completions) {
+        const agg = byUser.get(c.userId) ?? { totalSummits: 0, totalElevation: 0, uniquePeaks: new Set() };
+        agg.totalSummits += 1;
+        agg.totalElevation += c.mountain.elevationGain ?? 0;
+        agg.uniquePeaks.add(c.mountainId);
+        byUser.set(c.userId, agg);
+      }
+
+      // Sort by requested metric
+      const sorted = [...byUser.entries()]
+        .map(([userId, agg]) => ({ userId, totalSummits: agg.totalSummits, totalElevation: agg.totalElevation, uniquePeaks: agg.uniquePeaks.size }))
+        .sort((a, b) => {
+          if (input.metric === "elevation") return b.totalElevation - a.totalElevation;
+          if (input.metric === "unique") return b.uniquePeaks - a.uniquePeaks;
+          return b.totalSummits - a.totalSummits;
+        })
+        .slice(0, input.limit);
+
+      // Fetch user details
+      const users = await prisma.user.findMany({
+        where: { id: { in: sorted.map((r) => r.userId) } },
+        select: { id: true, name: true, email: true, avatar: true },
+      });
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
+      return sorted.map((r, i) => ({
+        rank: i + 1,
+        user: userMap.get(r.userId)!,
+        totalSummits: r.totalSummits,
+        totalElevation: r.totalElevation,
+        uniquePeaks: r.uniquePeaks,
+      }));
+    }),
 });
