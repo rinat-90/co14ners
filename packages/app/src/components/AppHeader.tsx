@@ -142,10 +142,6 @@ function NotificationBell() {
             </MenuItem>
           ))
         )}
-        <Divider />
-        <MenuItem component={NextLink} href="/notifications" onClick={() => setAnchor(null)} sx={{ justifyContent: "center", py: 1.25 }}>
-          <Typography variant="body2" color="primary" fontWeight={600}>View all notifications</Typography>
-        </MenuItem>
       </Menu>
     </>
   );
@@ -308,14 +304,6 @@ export default function AppHeader() {
                 >
                   <ListItemIcon><BarChartIcon fontSize="small" /></ListItemIcon>
                   My Stats
-                </MenuItem>
-                <MenuItem
-                  component={NextLink}
-                  href="/notifications"
-                  onClick={() => setMenuAnchor(null)}
-                >
-                  <ListItemIcon><NotificationsIcon fontSize="small" /></ListItemIcon>
-                  Notifications
                 </MenuItem>
                 <MenuItem
                   component={NextLink}
