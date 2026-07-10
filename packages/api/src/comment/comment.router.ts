@@ -56,7 +56,7 @@ export const commentRouter = router({
         ]).then(([author, mountain]) => {
           if (author && mountain) {
             const slug = mountain.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-            sendCommentEmail(author.email, actorName, input.body, mountain.name, slug).catch(() => {});
+            sendCommentEmail(author.email, actorName, input.body, mountain.name, slug, report.userId).catch(() => {});
           }
         }).catch(() => {});
       }

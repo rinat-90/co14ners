@@ -91,6 +91,17 @@ model User {
   mountainPhotos     MountainPhoto[]   @relation("MountainPhotoUploader")
   pushSubscriptions  PushSubscription[]
   mountainLists      MountainList[]
+  notifPrefs         NotificationPreference?
+}
+
+/// Per-user email notification opt-outs
+model NotificationPreference {
+  userId         String  @id
+  emailOnFollow  Boolean @default(true)
+  emailOnComment Boolean @default(true)
+  emailOnReview  Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// In-app notification

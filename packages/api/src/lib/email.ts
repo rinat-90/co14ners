@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { prisma } from "./prisma.js";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000";
 const FROM = process.env.SMTP_FROM ?? "co14ners <noreply@co14ners.app>";
@@ -77,6 +78,21 @@ async function send(to: string, subject: string, text: string, html: string) {
   await transport.sendMail({ from: FROM, to, subject, text, html });
 }
 
+// ── Pref guard ────────────────────────────────────────────────────────────────
+
+async function isEmailEnabled(
+  userId: string,
+  pref: "emailOnFollow" | "emailOnComment" | "emailOnReview",
+): Promise<boolean> {
+  try {
+    const row = await prisma.notificationPreference.findUnique({ where: { userId } });
+    // If no row exists the user hasn't changed anything → default true
+    return row ? row[pref] : true;
+  } catch {
+    return true; // fail open
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export async function sendPasswordResetEmail(to: string, token: string): Promise<void> {
@@ -96,7 +112,9 @@ export async function sendFollowEmail(
   to: string,
   actorName: string,
   actorId: string,
+  recipientId?: string,
 ): Promise<void> {
+  if (recipientId && !(await isEmailEnabled(recipientId, "emailOnFollow"))) return;
   const profileUrl = `${APP_URL}/users/${actorId}`;
   const text = `${actorName} started following you on co14ners.\n\nView their profile: ${profileUrl}`;
   const html = emailShell(`
@@ -116,7 +134,9 @@ export async function sendCommentEmail(
   commentBody: string,
   mountainName: string,
   mountainSlug: string,
+  recipientId?: string,
 ): Promise<void> {
+  if (recipientId && !(await isEmailEnabled(recipientId, "emailOnComment"))) return;
   const mountainUrl = `${APP_URL}/mountains/${mountainSlug}`;
   const preview = commentBody.length > 120 ? commentBody.slice(0, 120) + "…" : commentBody;
   const text = `${actorName} commented on your trip report for ${mountainName}:\n\n"${preview}"\n\nView the report: ${mountainUrl}`;
@@ -139,7 +159,9 @@ export async function sendReviewEmail(
   rating: number,
   mountainName: string,
   mountainSlug: string,
+  recipientId?: string,
 ): Promise<void> {
+  if (recipientId && !(await isEmailEnabled(recipientId, "emailOnReview"))) return;
   const mountainUrl = `${APP_URL}/mountains/${mountainSlug}`;
   const stars = "★".repeat(rating) + "☆".repeat(5 - rating);
   const text = `${actorName} reviewed ${mountainName} (${stars}) — a peak you've summited.\n\nRead the review: ${mountainUrl}`;

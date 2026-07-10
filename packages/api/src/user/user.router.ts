@@ -162,7 +162,7 @@ export const userRouter = router({
         // Email notification (fire-and-forget)
         prisma.user.findUnique({ where: { id: input.userId }, select: { email: true } })
           .then((followed) => {
-            if (followed) sendFollowEmail(followed.email, actorName, ctx.user.id).catch(() => {});
+            if (followed) sendFollowEmail(followed.email, actorName, ctx.user.id, input.userId).catch(() => {});
           })
           .catch(() => {});
       }
@@ -233,6 +233,28 @@ export const userRouter = router({
         include: { following: { select: { id: true, name: true, email: true, avatar: true, bio: true } } },
       });
       return rows.map((r) => r.following);
+    }),
+
+  notifPrefs: protectedProcedure.query(async ({ ctx }) => {
+    return prisma.notificationPreference.upsert({
+      where: { userId: ctx.user.id },
+      create: { userId: ctx.user.id },
+      update: {},
+    });
+  }),
+
+  updateNotifPrefs: protectedProcedure
+    .input(z.object({
+      emailOnFollow: z.boolean().optional(),
+      emailOnComment: z.boolean().optional(),
+      emailOnReview: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return prisma.notificationPreference.upsert({
+        where: { userId: ctx.user.id },
+        create: { userId: ctx.user.id, ...input },
+        update: input,
+      });
     }),
 
   leaderboard: publicProcedure

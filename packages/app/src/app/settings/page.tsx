@@ -17,8 +17,10 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import EmailIcon from "@mui/icons-material/Email";
 import LockIcon from "@mui/icons-material/Lock";
 import PersonIcon from "@mui/icons-material/Person";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import NotificationsOffIcon from "@mui/icons-material/NotificationsOff";
 import AppHeader from "@/components/AppHeader";
@@ -366,6 +368,62 @@ function ChangePasswordSection() {
   );
 }
 
+// ── Email Notifications Section ────────────────────────────────────────────────
+
+function EmailNotificationsSection() {
+  const utils = trpc.useUtils();
+  const { data: prefs, isLoading } = trpc.user.notifPrefs.useQuery();
+
+  const mutation = trpc.user.updateNotifPrefs.useMutation({
+    onSuccess: () => utils.user.notifPrefs.invalidate(),
+  });
+
+  function toggle(field: "emailOnFollow" | "emailOnComment" | "emailOnReview") {
+    if (!prefs) return;
+    mutation.mutate({ [field]: !prefs[field] });
+  }
+
+  const rows: { field: "emailOnFollow" | "emailOnComment" | "emailOnReview"; label: string; description: string }[] = [
+    { field: "emailOnFollow", label: "New followers", description: "When someone starts following you" },
+    { field: "emailOnComment", label: "Comments on your reports", description: "When someone comments on your trip report" },
+    { field: "emailOnReview", label: "Reviews on peaks you've summited", description: "When someone reviews a mountain you've climbed" },
+  ];
+
+  return (
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3 }}>
+      <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
+        <EmailOutlinedIcon color="primary" />
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>Email Notifications</Typography>
+      </Stack>
+      {isLoading ? (
+        <CircularProgress size={24} />
+      ) : (
+        <Stack divider={<Divider />}>
+          {rows.map(({ field, label, description }) => (
+            <Stack key={field} direction="row" alignItems="center" justifyContent="space-between" py={1.25}>
+              <Box>
+                <Typography variant="body1" fontWeight={500}>{label}</Typography>
+                <Typography variant="body2" color="text.secondary">{description}</Typography>
+              </Box>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={prefs?.[field] ?? true}
+                    onChange={() => toggle(field)}
+                    disabled={mutation.isPending}
+                  />
+                }
+                label=""
+                sx={{ mr: 0 }}
+              />
+            </Stack>
+          ))}
+        </Stack>
+      )}
+    </Paper>
+  );
+}
+
 // ── Push Notifications Section ─────────────────────────────────────────────────
 
 function PushNotificationsSection() {
@@ -499,6 +557,7 @@ export default function SettingsPage() {
           <AvatarSection />
           <AppearanceSection />
           <PushNotificationsSection />
+          <EmailNotificationsSection />
           <EditProfileSection />
           <ChangeEmailSection />
           <ChangePasswordSection />

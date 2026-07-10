@@ -80,10 +80,10 @@ export const reviewService = {
       if (mountainSlug) {
         prisma.user.findMany({
           where: { id: { in: capped.map((s) => s.userId) } },
-          select: { email: true },
+          select: { id: true, email: true },
         }).then((users) => {
           users.forEach((u) => {
-            sendReviewEmail(u.email, actorName, data.rating, mountainName, mountainSlug).catch(() => {});
+            sendReviewEmail(u.email, actorName, data.rating, mountainName, mountainSlug, u.id).catch(() => {});
           });
         }).catch(() => {});
       }
