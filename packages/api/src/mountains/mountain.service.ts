@@ -171,6 +171,49 @@ export const mountainService = {
     };
   },
 
+  async allConditionsSummary() {
+    const SCORES: Record<string, number> = { EXCELLENT: 4, GOOD: 3, FAIR: 2, POOR: 1 };
+
+    // Fetch up to 10 recent reports per mountain in one query (580 rows max for 58 mountains)
+    const reports = await prisma.tripReport.findMany({
+      where: { isPublic: true, conditions: { not: null } },
+      orderBy: { createdAt: "desc" },
+      take: 580,
+      select: { mountainId: true, conditions: true, createdAt: true },
+    });
+
+    // Group by mountainId, capped at 10 per mountain
+    const grouped = new Map<string, { conditions: string; createdAt: Date }[]>();
+    for (const r of reports) {
+      const arr = grouped.get(r.mountainId) ?? [];
+      if (arr.length < 10) {
+        arr.push({ conditions: r.conditions!, createdAt: r.createdAt });
+        grouped.set(r.mountainId, arr);
+      }
+    }
+
+    // Compute weighted average per mountain
+    const result: Record<string, { label: string; score: number; count: number; lastUpdated: Date }> = {};
+    for (const [mountainId, rows] of grouped) {
+      let totalWeight = 0;
+      let weightedScore = 0;
+      for (let i = 0; i < rows.length; i++) {
+        const weight = Math.max(0.2, 1.0 - i * 0.1);
+        const score = SCORES[rows[i].conditions] ?? 0;
+        weightedScore += score * weight;
+        totalWeight += weight;
+      }
+      const avg = weightedScore / totalWeight;
+      let label: string;
+      if (avg >= 3.5) label = "Excellent";
+      else if (avg >= 2.5) label = "Good";
+      else if (avg >= 1.5) label = "Fair";
+      else label = "Poor";
+      result[mountainId] = { label, score: Math.round(avg * 10) / 10, count: rows.length, lastUpdated: rows[0].createdAt };
+    }
+    return result;
+  },
+
   async search(query: string) {
     return prisma.mountain.findMany({
       where: { name: { contains: query, mode: "insensitive" } },

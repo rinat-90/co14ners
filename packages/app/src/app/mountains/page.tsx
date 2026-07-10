@@ -63,6 +63,13 @@ const SORTS = [
   { value: "popular_desc", label: "Most popular" },
 ];
 
+const CONDITIONS_COLOR: Record<string, "success" | "info" | "warning" | "error"> = {
+  Excellent: "success",
+  Good: "info",
+  Fair: "warning",
+  Poor: "error",
+};
+
 const DIFFICULTY_ORDER: Record<string, number> = {
   CLASS_1: 1, CLASS_2: 2, CLASS_3: 3, CLASS_4: 4, CLASS_5: 5,
 };
@@ -89,6 +96,7 @@ export default function MountainsPage() {
 
   const { data: completions } = trpc.user.completions.useQuery(undefined, { enabled: !!accessToken });
   const { data: favorites } = trpc.user.favorites.useQuery(undefined, { enabled: !!accessToken });
+  const { data: allConditions } = trpc.mountain.allConditions.useQuery();
 
   const summitedIds = useMemo(() => new Set(completions?.map((c) => c.mountainId) ?? []), [completions]);
   const savedIds = useMemo(() => new Set(favorites?.map((f) => f.mountainId) ?? []), [favorites]);
@@ -442,16 +450,29 @@ export default function MountainsPage() {
                               )}
                             </Stack>
                           )}
-                          {m._count && m._count.completions > 0 && (
-                            <Tooltip title={`${m._count.completions} summit${m._count.completions !== 1 ? "s" : ""} logged`}>
-                              <Stack direction="row" spacing={0.5} alignItems="center" mt={1}>
-                                <PeopleIcon sx={{ fontSize: "0.8rem", color: "text.disabled" }} />
-                                <Typography variant="caption" color="text.disabled">
-                                  {m._count.completions}
-                                </Typography>
-                              </Stack>
-                            </Tooltip>
-                          )}
+                          <Stack direction="row" spacing={1} mt={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                            {m._count && m._count.completions > 0 && (
+                              <Tooltip title={`${m._count.completions} summit${m._count.completions !== 1 ? "s" : ""} logged`}>
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                  <PeopleIcon sx={{ fontSize: "0.8rem", color: "text.disabled" }} />
+                                  <Typography variant="caption" color="text.disabled">
+                                    {m._count.completions}
+                                  </Typography>
+                                </Stack>
+                              </Tooltip>
+                            )}
+                            {allConditions?.[m.id] && (
+                              <Tooltip title={`Conditions: ${allConditions[m.id].label} (based on ${allConditions[m.id].count} report${allConditions[m.id].count !== 1 ? "s" : ""})`}>
+                                <Chip
+                                  label={allConditions[m.id].label}
+                                  size="small"
+                                  color={CONDITIONS_COLOR[allConditions[m.id].label] ?? "default"}
+                                  variant="outlined"
+                                  sx={{ height: 18, fontSize: "0.65rem", fontWeight: 600, "& .MuiChip-label": { px: 0.75 } }}
+                                />
+                              </Tooltip>
+                            )}
+                          </Stack>
                         </CardContent>
                       </CardActionArea>
                     </Card>

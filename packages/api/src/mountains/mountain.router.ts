@@ -33,6 +33,10 @@ export const mountainRouter = router({
     .input(z.object({ mountainId: z.string() }))
     .query(({ input }) => mountainService.conditionsSummary(input.mountainId)),
 
+  // Bulk conditions summary for all mountains (used by the 14ers list page)
+  allConditions: publicProcedure
+    .query(() => mountainService.allConditionsSummary()),
+
   search: publicProcedure
     .input(z.object({ query: z.string().min(1).max(80) }))
     .query(({ input }) => mountainService.search(input.query)),
