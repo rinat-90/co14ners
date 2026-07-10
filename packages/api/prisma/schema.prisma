@@ -76,18 +76,19 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  reviews       Review[]
-  favorites     Favorite[]
-  completions   Completion[]
-  refreshTokens RefreshToken[]
-  achievements  UserAchievement[]
-  tripReports   TripReport[]
-  followers         Follow[]          @relation("UserFollowing")
-  following         Follow[]          @relation("UserFollowers")
-  notifications     Notification[]    @relation("NotificationRecipient")
-  actorNotifications Notification[]   @relation("NotificationActor")
-  comments          Comment[]
-  gearChecklists    GearChecklist[]
+  reviews            Review[]
+  favorites          Favorite[]
+  completions        Completion[]
+  refreshTokens      RefreshToken[]
+  achievements       UserAchievement[]
+  tripReports        TripReport[]
+  followers          Follow[]          @relation("UserFollowing")
+  following          Follow[]          @relation("UserFollowers")
+  notifications      Notification[]    @relation("NotificationRecipient")
+  actorNotifications Notification[]    @relation("NotificationActor")
+  comments           Comment[]
+  gearChecklists     GearChecklist[]
+  mountainPhotos     MountainPhoto[]   @relation("MountainPhotoUploader")
 }
 
 /// In-app notification
@@ -159,6 +160,23 @@ model Mountain {
   tripReports    TripReport[]
   notifications  Notification[]
   gearChecklists GearChecklist[]
+  photos         MountainPhoto[]
+}
+
+/// Admin-uploaded photos for a mountain; one is flagged isMain → synced to Mountain.imageUrl
+model MountainPhoto {
+  id         String   @id @default(cuid())
+  mountainId String
+  uploadedBy String
+  url        String   @db.Text
+  caption    String?
+  isMain     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  uploader User     @relation("MountainPhotoUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@index([mountainId])
 }
 
 /// A specific named route up a mountain (e.g. "East Ridge", "North Face")

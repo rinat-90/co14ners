@@ -234,47 +234,32 @@ export default function AppHeader() {
           </Typography>
         </Box>
 
-        <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+        <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+          {/* Nav links — desktop only */}
+          <Box sx={{ display: { xs: "none", md: "flex" }, alignItems: "center", gap: 0.5, mr: 1 }}>
+            <Button component={NextLink} href="/mountains" color="inherit" startIcon={<TerrainIcon />} sx={{ fontWeight: 600 }}>
+              14ers
+            </Button>
+            <Button component={NextLink} href="/map" color="inherit" startIcon={<MapIcon />} sx={{ fontWeight: 600 }}>
+              Map
+            </Button>
+            <Button component={NextLink} href="/feed" color="inherit" startIcon={<DynamicFeedIcon />} sx={{ fontWeight: 600 }}>
+              Feed
+            </Button>
+            <Button component={NextLink} href="/leaderboard" color="inherit" startIcon={<EmojiEventsIcon />} sx={{ fontWeight: 600 }}>
+              Leaderboard
+            </Button>
+          </Box>
+
+          {/* Divider between nav and utility icons — desktop only */}
+          <Divider orientation="vertical" flexItem sx={{ display: { xs: "none", md: "block" }, my: 1, mr: 0.5 }} />
+
+          {/* Utility icons — always visible */}
           <Tooltip title="Search (/)">
             <IconButton onClick={() => setSearchOpen(true)} size="small" color="inherit">
               <SearchIcon />
             </IconButton>
           </Tooltip>
-          <Button
-            component={NextLink}
-            href="/mountains"
-            color="inherit"
-            sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
-          >
-            14ers
-          </Button>
-          <Button
-            component={NextLink}
-            href="/map"
-            color="inherit"
-            startIcon={<MapIcon />}
-            sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
-          >
-            Map
-          </Button>
-          <Button
-            component={NextLink}
-            href="/feed"
-            color="inherit"
-            startIcon={<DynamicFeedIcon />}
-            sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
-          >
-            Feed
-          </Button>
-          <Button
-            component={NextLink}
-            href="/leaderboard"
-            color="inherit"
-            startIcon={<EmojiEventsIcon />}
-            sx={{ fontWeight: 600, display: { xs: "none", md: "inline-flex" } }}
-          >
-            Leaderboard
-          </Button>
 
           {accessToken ? (
             <>

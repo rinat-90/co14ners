@@ -38,7 +38,7 @@ export const weatherRouter = router({
         `https://api.open-meteo.com/v1/forecast` +
         `?latitude=${latitude}&longitude=${longitude}` +
         `&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,windspeed_10m_max` +
-        `&wind_speed_unit=mph&temperature_unit=fahrenheit&forecast_days=3&timezone=America%2FDenver`;
+        `&wind_speed_unit=mph&temperature_unit=fahrenheit&forecast_days=7&timezone=America%2FDenver`;
 
       const res = await fetch(url);
       if (!res.ok) throw new Error("Weather fetch failed");

@@ -2,10 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react";
 import NextLink from "next/link";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import Drawer from "@mui/material/Drawer";
+import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
@@ -20,6 +24,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CloseIcon from "@mui/icons-material/Close";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import PeopleIcon from "@mui/icons-material/People";
 import SearchIcon from "@mui/icons-material/Search";
 import TerrainIcon from "@mui/icons-material/Terrain";
@@ -74,6 +79,7 @@ export default function MountainsPage() {
   const [difficulty, setDifficulty] = useState<DifficultyFilter | "">("");
   const [sort, setSort] = useState("altitude_desc");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
   const { data: mountains, isLoading } = trpc.mountain.list.useQuery({
     search: debouncedSearch || undefined,
@@ -167,60 +173,152 @@ export default function MountainsPage() {
         )}
       </Box>
 
+      {/* ── Mobile filter bottom sheet ────────────────────────────────────────── */}
+      <Drawer
+        anchor="bottom"
+        open={filterDrawerOpen}
+        onClose={() => setFilterDrawerOpen(false)}
+        slotProps={{ paper: { sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, px: 2.5, pt: 1.5, pb: 4, maxHeight: "85vh" } } }}
+      >
+        {/* Handle */}
+        <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: "divider", mx: "auto", mb: 2 }} />
+        <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+          <Typography variant="h6" fontWeight={700}>Filters</Typography>
+          <IconButton size="small" onClick={() => setFilterDrawerOpen(false)}><CloseIcon /></IconButton>
+        </Stack>
+
+        <Stack spacing={2}>
+          <TextField
+            select
+            label="Range"
+            value={range}
+            onChange={(e) => setRange(e.target.value as RangeFilter | "")}
+            fullWidth
+            slotProps={{ select: { displayEmpty: true } }}
+          >
+            {RANGES.map((r) => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
+          </TextField>
+          <TextField
+            select
+            label="Difficulty"
+            value={difficulty}
+            onChange={(e) => setDifficulty(e.target.value as DifficultyFilter | "")}
+            fullWidth
+            slotProps={{ select: { displayEmpty: true } }}
+          >
+            {DIFFICULTIES.map((d) => <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>)}
+          </TextField>
+          <TextField
+            select
+            label="Sort by"
+            value={sort}
+            onChange={(e) => setSort(e.target.value)}
+            fullWidth
+          >
+            {SORTS.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
+          </TextField>
+
+          {accessToken && (
+            <>
+              <Divider />
+              <Typography variant="caption" color="text.secondary" fontWeight={600} textTransform="uppercase" letterSpacing={0.5}>
+                Status
+              </Typography>
+              <ButtonGroup size="small" variant="outlined" fullWidth>
+                {([
+                  { key: "all", label: "All" },
+                  { key: "unsummited", label: "Unsummited" },
+                  { key: "summited", label: "Summited" },
+                  { key: "saved", label: "Saved" },
+                ] as { key: StatusFilter; label: string }[]).map(({ key, label }) => (
+                  <Button
+                    key={key}
+                    onClick={() => setStatusFilter(key)}
+                    sx={{
+                      fontWeight: statusFilter === key ? 700 : 400,
+                      bgcolor: statusFilter === key ? "primary.main" : "transparent",
+                      color: statusFilter === key ? "primary.contrastText" : "inherit",
+                      "&:hover": { bgcolor: statusFilter === key ? "primary.dark" : "action.hover" },
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </ButtonGroup>
+            </>
+          )}
+
+          <Stack direction="row" spacing={1.5} pt={1}>
+            {activeFilterCount > 0 && (
+              <Button variant="outlined" fullWidth onClick={() => { clearAllFilters(); setFilterDrawerOpen(false); }}>
+                Clear all
+              </Button>
+            )}
+            <Button variant="contained" fullWidth onClick={() => setFilterDrawerOpen(false)}>
+              Show {filtered.length} peak{filtered.length !== 1 ? "s" : ""}
+            </Button>
+          </Stack>
+        </Stack>
+      </Drawer>
+
       <Box sx={{ maxWidth: 1200, mx: "auto", px: { xs: 2, md: 4 }, py: 4 }}>
-        {/* Filters row */}
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} mb={2}>
+
+        {/* ── Desktop filters row ───────────────────────────────────────────────── */}
+        <Stack direction="row" spacing={2} mb={2} sx={{ display: { xs: "none", sm: "flex" } }}>
           <TextField
             placeholder="Search peaks…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            }}
+            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
             sx={{ flex: 2 }}
           />
-          <TextField
-            select
-            value={range}
-            onChange={(e) => setRange(e.target.value as RangeFilter | "")}
-            sx={{ flex: 1 }}
-            slotProps={{ select: { displayEmpty: true } }}
-          >
-            {RANGES.map((r) => (
-              <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>
-            ))}
+          <TextField select value={range} onChange={(e) => setRange(e.target.value as RangeFilter | "")} sx={{ flex: 1 }} slotProps={{ select: { displayEmpty: true } }}>
+            {RANGES.map((r) => <MenuItem key={r.value} value={r.value}>{r.label}</MenuItem>)}
           </TextField>
-          <TextField
-            select
-            value={difficulty}
-            onChange={(e) => setDifficulty(e.target.value as DifficultyFilter | "")}
-            sx={{ flex: 1 }}
-            slotProps={{ select: { displayEmpty: true } }}
-          >
-            {DIFFICULTIES.map((d) => (
-              <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>
-            ))}
+          <TextField select value={difficulty} onChange={(e) => setDifficulty(e.target.value as DifficultyFilter | "")} sx={{ flex: 1 }} slotProps={{ select: { displayEmpty: true } }}>
+            {DIFFICULTIES.map((d) => <MenuItem key={d.value} value={d.value}>{d.label}</MenuItem>)}
           </TextField>
-          <TextField
-            select
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-            sx={{ flex: 1 }}
-            slotProps={{ select: { displayEmpty: true } }}
-          >
-            {SORTS.map((s) => (
-              <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>
-            ))}
+          <TextField select value={sort} onChange={(e) => setSort(e.target.value)} sx={{ flex: 1 }} slotProps={{ select: { displayEmpty: true } }}>
+            {SORTS.map((s) => <MenuItem key={s.value} value={s.value}>{s.label}</MenuItem>)}
           </TextField>
         </Stack>
 
-        {/* Active filter indicator for logged-out users */}
+        {/* ── Mobile search + filter button row ────────────────────────────────── */}
+        <Stack direction="row" spacing={1} mb={2} sx={{ display: { xs: "flex", sm: "none" } }}>
+          <TextField
+            placeholder="Search peaks…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+            size="small"
+            sx={{ flex: 1 }}
+          />
+          <Badge badgeContent={activeFilterCount - (search ? 1 : 0)} color="primary" invisible={(activeFilterCount - (search ? 1 : 0)) === 0}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<FilterListIcon />}
+              onClick={() => setFilterDrawerOpen(true)}
+              sx={{ whiteSpace: "nowrap", minWidth: 90 }}
+            >
+              Filters
+            </Button>
+          </Badge>
+        </Stack>
+
+        {/* Active filters summary — mobile only */}
+        {(activeFilterCount - (search ? 1 : 0)) > 0 && (
+          <Stack direction="row" spacing={1} mb={1.5} flexWrap="wrap" useFlexGap sx={{ display: { xs: "flex", sm: "none" } }}>
+            {range && <Chip size="small" label={RANGES.find(r => r.value === range)?.label} onDelete={() => setRange("")} />}
+            {difficulty && <Chip size="small" label={DIFFICULTIES.find(d => d.value === difficulty)?.label} onDelete={() => setDifficulty("")} />}
+            {sort !== "altitude_desc" && <Chip size="small" label={SORTS.find(s => s.value === sort)?.label} onDelete={() => setSort("altitude_desc")} />}
+            {statusFilter !== "all" && <Chip size="small" label={statusFilter} onDelete={() => setStatusFilter("all")} />}
+          </Stack>
+        )}
+
+        {/* Active filter indicator for logged-out desktop users */}
         {!accessToken && activeFilterCount > 0 && (
-          <Box mb={2}>
+          <Box mb={2} sx={{ display: { xs: "none", sm: "block" } }}>
             <Chip
               size="small"
               label={`Clear ${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""}`}
@@ -236,9 +334,9 @@ export default function MountainsPage() {
           </Box>
         )}
 
-        {/* Status filter chips — only when logged in */}
+        {/* Status filter chips — desktop only when logged in */}
         {accessToken && (
-          <Stack direction="row" spacing={1} mb={3} flexWrap="wrap" useFlexGap>
+          <Stack direction="row" spacing={1} mb={3} flexWrap="wrap" useFlexGap sx={{ display: { xs: "none", sm: "flex" } }}>
             <ButtonGroup size="small" variant="outlined" sx={{ borderRadius: 3 }}>
               {([
                 { key: "all", label: "All" },

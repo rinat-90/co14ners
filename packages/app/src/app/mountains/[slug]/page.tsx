@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import NextLink from "next/link";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
@@ -31,6 +31,7 @@ import Snackbar from "@mui/material/Snackbar";
 import CircularProgress from "@mui/material/CircularProgress";
 import Collapse from "@mui/material/Collapse";
 import InputAdornment from "@mui/material/InputAdornment";
+import CameraAltIcon from "@mui/icons-material/CameraAlt";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import SendIcon from "@mui/icons-material/Send";
@@ -61,6 +62,8 @@ import StarIcon from "@mui/icons-material/Star";
 import ShareIcon from "@mui/icons-material/Share";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
 import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
 import RangeLabel from "@/components/mountains/RangeLabel";
@@ -506,6 +509,130 @@ function ReviewsSection({ mountainId, mountainSlug, accessToken }: { mountainId:
         />
       )}
     </Paper>
+  );
+}
+
+// ── Mountain Photo Manager (admin only) ────────────────────────────────────────
+
+function resizeMountainPhoto(file: File, size = 1200): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const scale = Math.min(size / img.width, size / img.height, 1);
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function MountainPhotoManager({ mountainId, mountainSlug }: { mountainId: string; mountainSlug: string }) {
+  const utils = trpc.useUtils();
+  const [fileInput, setFileInput] = useState<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: photos, isLoading } = trpc.mountain.photos.useQuery({ mountainId }, { enabled: !!mountainId });
+
+  const invalidate = () => {
+    utils.mountain.photos.invalidate({ mountainId });
+    utils.mountain.getBySlug.invalidate({ slug: mountainSlug });
+  };
+
+  const addMutation = trpc.mountain.addPhoto.useMutation({ onSuccess: invalidate, onError: (e) => setError(e.message) });
+  const deleteMutation = trpc.mountain.deletePhoto.useMutation({ onSuccess: invalidate });
+  const setMainMutation = trpc.mountain.setMainPhoto.useMutation({ onSuccess: invalidate });
+
+  async function handleFiles(files: FileList) {
+    setError(null);
+    setUploading(true);
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith("image/")) continue;
+      if (file.size > 10 * 1024 * 1024) { setError(`${file.name} exceeds 10 MB limit`); continue; }
+      try {
+        const url = await resizeMountainPhoto(file);
+        await addMutation.mutateAsync({ mountainId, url });
+      } catch {
+        setError(`Failed to upload ${file.name}`);
+      }
+    }
+    setUploading(false);
+    if (fileInput) fileInput.value = "";
+  }
+
+  return (
+    <Box>
+      <Stack direction="row" spacing={1.5} alignItems="center" mb={2}>
+        <CameraAltIcon color="primary" />
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" }, flex: 1 }}>
+          Manage Photos
+        </Typography>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={uploading ? <CircularProgress size={14} /> : <AddPhotoAlternateIcon />}
+          disabled={uploading}
+          onClick={() => fileInput?.click()}
+          sx={{ borderRadius: 2 }}
+        >
+          Upload
+        </Button>
+        <input
+          ref={setFileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          style={{ display: "none" }}
+          onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); }}
+        />
+      </Stack>
+
+      {error && <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setError(null)}>{error}</Alert>}
+
+      {isLoading ? (
+        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          {[1, 2, 3].map((i) => <Skeleton key={i} variant="rounded" width={120} height={90} sx={{ borderRadius: 2 }} />)}
+        </Stack>
+      ) : !photos || photos.length === 0 ? (
+        <Typography variant="body2" color="text.secondary">No photos uploaded yet. Click Upload to add the first one.</Typography>
+      ) : (
+        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+          {photos.map((photo) => (
+            <Box key={photo.id} sx={{ position: "relative", width: 140, flexShrink: 0 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={photo.url}
+                alt={photo.caption ?? "Mountain photo"}
+                style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 8, display: "block", border: photo.isMain ? "2.5px solid" : "2px solid transparent" }}
+              />
+              {photo.isMain && (
+                <Chip label="Main" size="small" color="primary" sx={{ position: "absolute", top: 4, left: 4, height: 20, fontSize: "0.65rem", fontWeight: 700 }} />
+              )}
+              <Stack direction="row" spacing={0} justifyContent="center" mt={0.5}>
+                {!photo.isMain && (
+                  <Tooltip title="Set as main photo">
+                    <IconButton size="small" onClick={() => setMainMutation.mutate({ id: photo.id })} disabled={setMainMutation.isPending}>
+                      <StarIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                <Tooltip title="Delete photo">
+                  <IconButton size="small" color="error" onClick={() => deleteMutation.mutate({ id: photo.id })} disabled={deleteMutation.isPending}>
+                    <DeleteIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+      )}
+    </Box>
   );
 }
 
@@ -1544,17 +1671,54 @@ const WEATHER_ICONS: Record<string, React.ReactNode> = {
 
 function WeatherSection({ latitude, longitude }: { latitude: number; longitude: number }) {
   const { data: forecast, isLoading } = trpc.weather.getForecast.useQuery({ latitude, longitude });
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [activeCardIdx, setActiveCardIdx] = useState(0);
+
+  const theme = useTheme();
+  const isMd = useMediaQuery(theme.breakpoints.up("md")); // ≥900px → 3 visible
+  const isSm = useMediaQuery(theme.breakpoints.up("sm")); // ≥600px → 2 visible
+  const visibleItems = isMd ? 3 : isSm ? 2 : 1;
 
   const hasMonsoonRisk = forecast?.some((d) => d.precipChance > 60) ?? false;
+  const total = forecast?.length ?? 0;
+  const pageCount = Math.ceil(total / visibleItems);
+  // active dot = which "page" the leading visible card belongs to
+  const activeDot = Math.floor(activeCardIdx / visibleItems);
+
+  function scrollTo(cardIdx: number) {
+    const track = trackRef.current;
+    if (!track) return;
+    const card = track.children[cardIdx] as HTMLElement | undefined;
+    if (card) card.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    setActiveCardIdx(cardIdx);
+  }
+
+  function handleScroll() {
+    const track = trackRef.current;
+    if (!track) return;
+    const cardWidth = (track.children[0] as HTMLElement | undefined)?.offsetWidth ?? 1;
+    setActiveCardIdx(Math.round(track.scrollLeft / cardWidth));
+  }
 
   return (
     <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mb: 3 }}>
       <Stack direction="row" spacing={1} alignItems="center" mb={2}>
         <WbSunnyIcon sx={{ color: "warning.main", fontSize: "1.2rem" }} />
-        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>
+        <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" }, flex: 1 }}>
           Summit Forecast
         </Typography>
-        <Typography variant="caption" color="text.secondary">(3-day, Denver time)</Typography>
+        <Typography variant="caption" color="text.secondary">7-day · Denver time</Typography>
+        {/* Prev / Next arrows */}
+        {!isLoading && total > 0 && (
+          <Stack direction="row" spacing={0.5}>
+            <IconButton size="small" disabled={activeDot === 0} onClick={() => scrollTo(Math.max(0, activeDot - 1) * visibleItems)}>
+              <ArrowBackIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" disabled={activeDot >= pageCount - 1} onClick={() => scrollTo(Math.min(pageCount - 1, activeDot + 1) * visibleItems)}>
+              <ArrowForwardIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        )}
       </Stack>
 
       {hasMonsoonRisk && (
@@ -1567,72 +1731,110 @@ function WeatherSection({ latitude, longitude }: { latitude: number; longitude: 
       )}
 
       {isLoading ? (
-        <Stack direction="row" spacing={2}>
+        <Stack direction="row" spacing={1.5}>
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} variant="rounded" height={120} sx={{ flex: 1, borderRadius: 2 }} />
+            <Skeleton key={i} variant="rounded" height={148} sx={{ flex: { xs: "0 0 100%", sm: "0 0 calc(50% - 6px)", md: "0 0 calc(33.33% - 8px)" }, borderRadius: 2 }} />
           ))}
         </Stack>
       ) : forecast && forecast.length > 0 ? (
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-          {forecast.map((day) => (
-            <Paper
-              key={day.date}
-              variant="outlined"
-              sx={{
-                flex: 1,
-                p: { xs: 1.5, md: 2 },
-                borderRadius: 2,
-                textAlign: "center",
-                position: "relative",
-                ...(day.isBestDay && {
-                  borderColor: "success.main",
-                  bgcolor: "success.50",
-                }),
-              }}
-            >
-              {day.isBestDay && (
-                <Chip
-                  label="Best day"
-                  size="small"
-                  sx={{
-                    position: "absolute",
-                    top: -10,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                    bgcolor: "success.main",
-                    color: "white",
-                    fontWeight: 700,
-                    fontSize: "0.65rem",
-                    height: 20,
-                  }}
-                />
-              )}
-              <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                {new Date(day.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-              </Typography>
-              <Box sx={{ fontSize: "1.75rem", lineHeight: 1, mb: 0.5 }}>
-                {WEATHER_ICONS[day.icon] ?? <CloudIcon />}
-              </Box>
-              <Typography variant="caption" color="text.secondary" display="block" mb={1} sx={{ fontSize: "0.7rem" }}>
-                {day.condition}
-              </Typography>
-              <Stack direction="row" justifyContent="center" spacing={0.5} mb={0.75}>
-                <Typography variant="body2" fontWeight={700}>{day.tempMax}°</Typography>
-                <Typography variant="body2" color="text.secondary">/ {day.tempMin}°F</Typography>
-              </Stack>
-              <Stack direction="row" justifyContent="center" spacing={1.5}>
-                <Stack direction="row" spacing={0.25} alignItems="center">
-                  <WaterDropIcon sx={{ fontSize: "0.75rem", color: "info.main" }} />
-                  <Typography variant="caption" color="text.secondary">{day.precipChance}%</Typography>
+        <>
+          {/* Scroll track */}
+          <Box
+            ref={trackRef}
+            onScroll={handleScroll}
+            sx={{
+              display: "flex",
+              gap: 1.5,
+              overflowX: "auto",
+              overflowY: "visible",
+              scrollSnapType: "x mandatory",
+              scrollbarWidth: "none",
+              "&::-webkit-scrollbar": { display: "none" },
+              pt: 1.5,
+              pb: 0.5,
+            }}
+          >
+            {forecast.map((day) => (
+              <Paper
+                key={day.date}
+                variant="outlined"
+                sx={{
+                  // 1 on phone, 2 on tablet, 3 on desktop
+                  flex: { xs: "0 0 100%", sm: "0 0 calc(50% - 6px)", md: "0 0 calc(33.33% - 8px)" },
+                  scrollSnapAlign: "start",
+                  p: { xs: 1.5, md: 2 },
+                  borderRadius: 2,
+                  textAlign: "center",
+                  position: "relative",
+                  flexShrink: 0,
+                  overflow: "visible",
+                  ...(day.isBestDay && {
+                    borderColor: "success.main",
+                    bgcolor: "success.50",
+                  }),
+                }}
+              >
+                {day.isBestDay && (
+                  <Chip
+                    label="Best day"
+                    size="small"
+                    sx={{
+                      position: "absolute",
+                      top: -10,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      bgcolor: "success.main",
+                      color: "white",
+                      fontWeight: 700,
+                      fontSize: "0.65rem",
+                      height: 20,
+                    }}
+                  />
+                )}
+                <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                  {new Date(day.date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                </Typography>
+                <Box sx={{ fontSize: "1.75rem", lineHeight: 1, mb: 0.5 }}>
+                  {WEATHER_ICONS[day.icon] ?? <CloudIcon />}
+                </Box>
+                <Typography variant="caption" color="text.secondary" display="block" mb={1} sx={{ fontSize: "0.7rem" }}>
+                  {day.condition}
+                </Typography>
+                <Stack direction="row" justifyContent="center" spacing={0.5} mb={0.75}>
+                  <Typography variant="body2" fontWeight={700}>{day.tempMax}°</Typography>
+                  <Typography variant="body2" color="text.secondary">/ {day.tempMin}°F</Typography>
                 </Stack>
-                <Stack direction="row" spacing={0.25} alignItems="center">
-                  <AirIcon sx={{ fontSize: "0.75rem", color: "text.secondary" }} />
-                  <Typography variant="caption" color="text.secondary">{day.windMax} mph</Typography>
+                <Stack direction="row" justifyContent="center" spacing={1.5}>
+                  <Stack direction="row" spacing={0.25} alignItems="center">
+                    <WaterDropIcon sx={{ fontSize: "0.75rem", color: "info.main" }} />
+                    <Typography variant="caption" color="text.secondary">{day.precipChance}%</Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={0.25} alignItems="center">
+                    <AirIcon sx={{ fontSize: "0.75rem", color: "text.secondary" }} />
+                    <Typography variant="caption" color="text.secondary">{day.windMax} mph</Typography>
+                  </Stack>
                 </Stack>
-              </Stack>
-            </Paper>
-          ))}
-        </Stack>
+              </Paper>
+            ))}
+          </Box>
+          {/* Dot indicators — one per page */}
+          <Stack direction="row" justifyContent="center" spacing={0.75} mt={1.5}>
+            {Array.from({ length: pageCount }).map((_, i) => (
+              <Box
+                key={i}
+                onClick={() => scrollTo(i * visibleItems)}
+                sx={{
+                  width: i === activeDot ? 16 : 6,
+                  height: 6,
+                  borderRadius: 3,
+                  bgcolor: i === activeDot ? "primary.main" : "action.disabled",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              />
+            ))}
+          </Stack>
+        </>
       ) : (
         <Typography variant="body2" color="text.secondary">Forecast unavailable.</Typography>
       )}
@@ -1652,6 +1854,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
   const isAdmin = user?.role === "ADMIN";
   const [logOpen, setLogOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [photoManagerOpen, setPhotoManagerOpen] = useState(false);
   const [editingTrail, setEditingTrail] = useState<TrailForEdit | null>(null);
   const [selectedTrailId, setSelectedTrailId] = useState<string>("");
   const [achievementToast, setAchievementToast] = useState<string[]>([]);
@@ -1738,7 +1941,9 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
       {/* Hero */}
       <Box
         sx={{
-          background: "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 60%, #15803d 100%)",
+          background: mountain?.imageUrl
+            ? `linear-gradient(rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.6) 100%), url(${mountain.imageUrl}) center/cover no-repeat`
+            : "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 60%, #15803d 100%)",
           color: "white",
           pt: { xs: 4, md: 6 },
           pb: { xs: 6, md: 10 },
@@ -1799,7 +2004,7 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
               </Stack>
 
               {accessToken && (
-                <Stack direction="row" spacing={1.5} mt={3}>
+                <Stack direction="row" spacing={1.5} mt={3} flexWrap="wrap" useFlexGap>
                   <Button
                     variant="contained"
                     startIcon={<EmojiEventsIcon />}
@@ -1852,12 +2057,39 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                       <ShareIcon />
                     </IconButton>
                   </Tooltip>
+                  {isAdmin && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<CameraAltIcon />}
+                      onClick={() => setPhotoManagerOpen((v) => !v)}
+                      sx={{ color: "white", borderColor: "rgba(255,255,255,0.5)", backdropFilter: "blur(4px)", "&:hover": { borderColor: "white", bgcolor: "rgba(255,255,255,0.1)" } }}
+                    >
+                      {photoManagerOpen ? "Hide Photos" : "Manage Photos"}
+                    </Button>
+                  )}
                 </Stack>
               )}
             </>
           )}
         </Box>
       </Box>
+
+      {/* Admin photo manager dialog */}
+      {isAdmin && mountain && (
+        <Dialog open={photoManagerOpen} onClose={() => setPhotoManagerOpen(false)} fullWidth maxWidth="md" slotProps={{ paper: { sx: { borderRadius: 3 } } }}>
+          <DialogTitle sx={{ display: "flex", alignItems: "center", gap: 1.5, pb: 1 }}>
+            <CameraAltIcon color="primary" />
+            <Typography variant="h6" fontWeight={600} component="span" sx={{ flex: 1 }}>
+              Manage Photos — {mountain.name}
+            </Typography>
+            <IconButton onClick={() => setPhotoManagerOpen(false)} size="small"><CancelIcon sx={{ fontSize: 18 }} /></IconButton>
+          </DialogTitle>
+          <DialogContent>
+            <MountainPhotoManager mountainId={id} mountainSlug={slug} />
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Box sx={{ maxWidth: 900, mx: "auto", px: { xs: 2, md: 4 }, mt: -4, zIndex: 2, position: "relative" }}>
         {/* Stats row */}
