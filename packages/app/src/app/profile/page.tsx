@@ -42,6 +42,8 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
+import StarIcon from "@mui/icons-material/Star";
+import WhatshotIcon from "@mui/icons-material/Whatshot";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
@@ -290,7 +292,19 @@ type Completion = {
   mountain: { altitude: number; range: string; difficulty: string };
 };
 
-function StatsTab({ completions }: { completions: Completion[] }) {
+type PersonalBests = {
+  firstSummit: { mountainName: string; date: Date | string };
+  highestPeak: { mountainName: string; altitude: number };
+  busiestMonth: { month: string; count: number };
+  bestElevMonth: { month: string; elevation: number } | null;
+} | null;
+
+function fmtMonth(ym: string) {
+  const [y, m] = ym.split("-");
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function StatsTab({ completions, personalBests }: { completions: Completion[]; personalBests: PersonalBests }) {
   // Peaks by range
   const byRange = Object.entries(
     completions.reduce((acc, c) => {
@@ -352,6 +366,52 @@ function StatsTab({ completions }: { completions: Completion[] }) {
 
   return (
     <Stack spacing={3}>
+      {/* Personal Records */}
+      {personalBests && (
+        <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+          <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+            <StarIcon sx={{ color: "warning.main", fontSize: 20 }} />
+            <Typography variant="subtitle2" fontWeight={700}>Personal Records</Typography>
+          </Stack>
+          <Stack spacing={0} divider={<Divider />}>
+            <Stack direction="row" alignItems="center" py={1.25} spacing={1.5}>
+              <EmojiEventsIcon sx={{ fontSize: "1rem", color: "text.disabled", flexShrink: 0 }} />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" color="text.secondary">First Summit</Typography>
+                <Typography variant="body2" fontWeight={600}>{personalBests.firstSummit.mountainName}</Typography>
+              </Box>
+              <Typography variant="caption" color="text.disabled">{fmtDate(personalBests.firstSummit.date)}</Typography>
+            </Stack>
+            <Stack direction="row" alignItems="center" py={1.25} spacing={1.5}>
+              <TerrainIcon sx={{ fontSize: "1rem", color: "text.disabled", flexShrink: 0 }} />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" color="text.secondary">Highest Peak</Typography>
+                <Typography variant="body2" fontWeight={600}>{personalBests.highestPeak.mountainName}</Typography>
+              </Box>
+              <Typography variant="caption" color="text.disabled">{personalBests.highestPeak.altitude.toLocaleString()} ft</Typography>
+            </Stack>
+            <Stack direction="row" alignItems="center" py={1.25} spacing={1.5}>
+              <WhatshotIcon sx={{ fontSize: "1rem", color: "text.disabled", flexShrink: 0 }} />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="caption" color="text.secondary">Most Active Month</Typography>
+                <Typography variant="body2" fontWeight={600}>{fmtMonth(personalBests.busiestMonth.month)}</Typography>
+              </Box>
+              <Typography variant="caption" color="text.disabled">{personalBests.busiestMonth.count} summit{personalBests.busiestMonth.count !== 1 ? "s" : ""}</Typography>
+            </Stack>
+            {personalBests.bestElevMonth && (
+              <Stack direction="row" alignItems="center" py={1.25} spacing={1.5}>
+                <TrendingUpIcon sx={{ fontSize: "1rem", color: "text.disabled", flexShrink: 0 }} />
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="caption" color="text.secondary">Most Elevation Gained in a Month</Typography>
+                  <Typography variant="body2" fontWeight={600}>{fmtMonth(personalBests.bestElevMonth.month)}</Typography>
+                </Box>
+                <Typography variant="caption" color="text.disabled">{personalBests.bestElevMonth.elevation.toLocaleString()} ft</Typography>
+              </Stack>
+            )}
+          </Stack>
+        </Paper>
+      )}
+
       {/* Key numbers */}
       <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
         <Paper variant="outlined" sx={{ px: 2.5, py: 2, borderRadius: 3, flex: "1 1 140px", textAlign: "center" }}>
@@ -489,6 +549,7 @@ export default function ProfilePage() {
   const { data: myReports, isLoading: reportsLoading } = trpc.tripReport.myReports.useQuery(undefined, { enabled: !!accessToken });
   const { data: myLists, isLoading: listsLoading } = trpc.list.myLists.useQuery(undefined, { enabled: !!accessToken });
   const { data: streak } = trpc.user.streak.useQuery(undefined, { enabled: !!accessToken });
+  const { data: personalBests } = trpc.user.personalBests.useQuery(undefined, { enabled: !!accessToken });
   const { data: myPlans } = trpc.plannedHike.myPlans.useQuery(undefined, { enabled: !!accessToken });
 
   const earnedTypes = new Set(achievements?.map((a) => a.type) ?? []);
@@ -836,7 +897,7 @@ export default function ProfilePage() {
 
             {/* ── Tab 2: Stats ── */}
             {tab === 2 && (
-              <StatsTab completions={completions ?? []} />
+              <StatsTab completions={completions ?? []} personalBests={personalBests ?? null} />
             )}
 
             {/* ── Tab 3: Achievements ── */}

@@ -24,6 +24,7 @@ import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import WbSunnyIcon from "@mui/icons-material/WbSunny";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import AppHeader from "@/components/AppHeader";
@@ -223,6 +224,69 @@ function MiniFollowingFeed() {
   );
 }
 
+// ── On This Day ──────────────────────────────────────────────────────────────
+
+function OnThisDayWidget() {
+  const { data: anniversaries } = trpc.user.onThisDay.useQuery();
+
+  if (!anniversaries || anniversaries.length === 0) return null;
+
+  const today = new Date();
+  const dateLabel = today.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+
+  return (
+    <Paper sx={{ p: { xs: 2.5, md: 3 }, borderRadius: 3, border: "1px solid", borderColor: "primary.100", bgcolor: "primary.50" }}>
+      <Stack direction="row" alignItems="center" spacing={1.5} mb={1.5}>
+        <CalendarMonthIcon color="primary" />
+        <Typography variant="h6" fontWeight={700}>On This Day</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ ml: "auto !important" }}>{dateLabel}</Typography>
+      </Stack>
+      <Stack spacing={1.5}>
+        {anniversaries.map((a) => (
+          <Stack
+            key={a.id}
+            direction="row"
+            alignItems="center"
+            spacing={1.5}
+            component={NextLink}
+            href={`/mountains/${toSlug(a.mountainName)}`}
+            sx={{ textDecoration: "none", color: "inherit", "&:hover .otd-name": { color: "primary.main" } }}
+          >
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                bgcolor: "primary.main",
+                color: "primary.contrastText",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                fontSize: "0.7rem",
+                fontWeight: 800,
+                lineHeight: 1.1,
+                textAlign: "center",
+              }}
+            >
+              {a.yearsAgo}yr
+            </Box>
+            <Box>
+              <Typography className="otd-name" variant="body2" fontWeight={700} sx={{ transition: "color 0.15s" }}>
+                {a.mountainName}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {a.yearsAgo} year{a.yearsAgo !== 1 ? "s" : ""} ago · {a.mountainAltitude.toLocaleString()} ft
+              </Typography>
+            </Box>
+            <EmojiEventsIcon sx={{ ml: "auto !important", color: "primary.main", fontSize: "1.1rem", flexShrink: 0 }} />
+          </Stack>
+        ))}
+      </Stack>
+    </Paper>
+  );
+}
+
 // ── Quick Links ───────────────────────────────────────────────────────────────
 
 function QuickLinks() {
@@ -415,6 +479,7 @@ export default function HomePage() {
         <Box sx={{ maxWidth: 900, mx: "auto", px: { xs: 2, md: 4 }, pt: 3 }}>
           <Stack spacing={3}>
             <QuickLinks />
+            <OnThisDayWidget />
             <ProgressSection />
             <MiniFollowingFeed />
             <BestConditionsWidget />

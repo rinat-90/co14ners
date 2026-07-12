@@ -134,6 +134,77 @@ export const userRouter = router({
 
   streak: protectedProcedure.query(({ ctx }) => userService.getStreak(ctx.user.id)),
 
+  onThisDay: protectedProcedure.query(async ({ ctx }) => {
+    const today = new Date();
+    const month = today.getMonth() + 1; // 1-12
+    const day = today.getDate();
+    const currentYear = today.getFullYear();
+
+    const completions = await prisma.completion.findMany({
+      where: { userId: ctx.user.id, isPrivate: false },
+      include: { mountain: { select: { name: true, altitude: true, difficulty: true } } },
+    });
+
+    return completions
+      .filter((c) => {
+        const d = new Date(c.completedAt);
+        return d.getMonth() + 1 === month && d.getDate() === day && d.getFullYear() < currentYear;
+      })
+      .map((c) => ({
+        id: c.id,
+        mountainName: c.mountain.name,
+        mountainAltitude: c.mountain.altitude,
+        mountainDifficulty: c.mountain.difficulty,
+        completedAt: c.completedAt,
+        yearsAgo: currentYear - new Date(c.completedAt).getFullYear(),
+      }))
+      .sort((a, b) => a.yearsAgo - b.yearsAgo);
+  }),
+
+  personalBests: protectedProcedure.query(async ({ ctx }) => {
+    const completions = await prisma.completion.findMany({
+      where: { userId: ctx.user.id },
+      orderBy: { completedAt: "asc" },
+      include: { mountain: { select: { name: true, altitude: true, elevationGain: true } } },
+    });
+
+    if (completions.length === 0) return null;
+
+    // First summit
+    const first = completions[0];
+
+    // Highest unique peak
+    const uniqueByMountain = new Map<string, typeof completions[0]>();
+    for (const c of completions) {
+      if (!uniqueByMountain.has(c.mountainId)) uniqueByMountain.set(c.mountainId, c);
+    }
+    const highestPeak = [...uniqueByMountain.values()].sort((a, b) => b.mountain.altitude - a.mountain.altitude)[0];
+
+    // Busiest month (most summits)
+    const monthMap: Record<string, number> = {};
+    for (const c of completions) {
+      const key = new Date(c.completedAt).toISOString().slice(0, 7);
+      monthMap[key] = (monthMap[key] ?? 0) + 1;
+    }
+    const [busiestMonthKey, busiestMonthCount] = Object.entries(monthMap).sort((a, b) => b[1] - a[1])[0];
+
+    // Best elevation month (most total elevation gained)
+    const elevMap: Record<string, number> = {};
+    for (const c of completions) {
+      const key = new Date(c.completedAt).toISOString().slice(0, 7);
+      elevMap[key] = (elevMap[key] ?? 0) + (c.mountain.elevationGain ?? 0);
+    }
+    const elevEntries = Object.entries(elevMap).filter(([, e]) => e > 0).sort((a, b) => b[1] - a[1]);
+    const bestElevMonth = elevEntries[0] ? { month: elevEntries[0][0], elevation: elevEntries[0][1] } : null;
+
+    return {
+      firstSummit: { mountainName: first.mountain.name, date: first.completedAt },
+      highestPeak: { mountainName: highestPeak.mountain.name, altitude: highestPeak.mountain.altitude },
+      busiestMonth: { month: busiestMonthKey, count: busiestMonthCount },
+      bestElevMonth,
+    };
+  }),
+
   publicProfile: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(({ input }) => userService.getPublicProfile(input.userId)),
