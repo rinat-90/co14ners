@@ -19,6 +19,7 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AppHeader from "@/components/AppHeader";
 import BottomNav from "@/components/BottomNav";
 import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/lib/auth-context";
 
 type Metric = "summits" | "elevation" | "unique";
 
@@ -44,12 +45,139 @@ function metricValue(entry: { totalSummits: number; totalElevation: number; uniq
   return entry.totalSummits;
 }
 
-export default function LeaderboardPage() {
-  const [metric, setMetric] = useState<Metric>("summits");
-
-  const { data, isLoading } = trpc.user.leaderboard.useQuery({ metric, limit: 50 });
-
+function RankingList({
+  data,
+  isLoading,
+  metric,
+  emptyMessage,
+  highlightMe = false,
+}: {
+  data: { rank: number; user: { id: string; name: string | null; email: string; avatar: string | null }; totalSummits: number; totalElevation: number; uniquePeaks: number; isMe?: boolean }[] | undefined;
+  isLoading: boolean;
+  metric: Metric;
+  emptyMessage?: string;
+  highlightMe?: boolean;
+}) {
   const currentTab = TABS.find((t) => t.value === metric)!;
+
+  if (isLoading) {
+    return (
+      <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
+        {Array.from({ length: 10 }).map((_, i) => (
+          <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, py: 1.5, borderBottom: i < 9 ? "1px solid" : "none", borderColor: "divider" }}>
+            <Skeleton variant="circular" width={32} height={32} />
+            <Skeleton variant="circular" width={36} height={36} />
+            <Box sx={{ flex: 1 }}>
+              <Skeleton width="40%" height={18} />
+              <Skeleton width="25%" height={14} />
+            </Box>
+            <Skeleton width={80} height={18} />
+          </Box>
+        ))}
+      </Paper>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <Paper sx={{ borderRadius: 3, py: 6, textAlign: "center" }}>
+        <Typography color="text.secondary">{emptyMessage ?? "No data yet."}</Typography>
+      </Paper>
+    );
+  }
+
+  return (
+    <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
+      {data.map((entry, i) => {
+        const isTopThree = entry.rank <= 3;
+        const val = metricValue(entry, metric);
+        const isMe = highlightMe && entry.isMe;
+        return (
+          <Box
+            key={entry.user.id}
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              px: 2,
+              py: 1.5,
+              bgcolor: isMe ? "primary.50" : rankBg(entry.rank),
+              borderBottom: i < data.length - 1 ? "1px solid" : "none",
+              borderColor: "divider",
+              transition: "background 0.15s",
+              "&:hover": { bgcolor: "action.hover" },
+            }}
+          >
+            <Box sx={{ width: 32, textAlign: "center", flexShrink: 0 }}>
+              {isTopThree ? (
+                <Tooltip title={MEDAL_LABELS[entry.rank - 1]}>
+                  <EmojiEventsIcon sx={{ fontSize: 22, color: MEDAL_COLORS[entry.rank - 1] }} />
+                </Tooltip>
+              ) : (
+                <Typography variant="body2" color={isMe ? "primary.main" : "text.disabled"} fontWeight={600}>
+                  {entry.rank}
+                </Typography>
+              )}
+            </Box>
+
+            <Avatar
+              component={NextLink}
+              href={`/users/${entry.user.id}`}
+              src={entry.user.avatar ?? undefined}
+              sx={{ width: 36, height: 36, fontSize: 13, flexShrink: 0, textDecoration: "none", fontWeight: 700 }}
+            >
+              {!entry.user.avatar && (entry.user.name ?? entry.user.email).slice(0, 2).toUpperCase()}
+            </Avatar>
+
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <Typography
+                  component={NextLink}
+                  href={`/users/${entry.user.id}`}
+                  variant="body2"
+                  fontWeight={700}
+                  noWrap
+                  sx={{ textDecoration: "none", color: isMe ? "primary.main" : "text.primary", "&:hover": { color: "primary.main" }, display: "block" }}
+                >
+                  {entry.user.name ?? entry.user.email.split("@")[0]}
+                </Typography>
+                {isMe && <Chip label="You" size="small" color="primary" sx={{ height: 16, fontSize: "0.65rem", "& .MuiChip-label": { px: 0.75 } }} />}
+              </Stack>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                {metric !== "summits" && (
+                  <Typography variant="caption" color="text.disabled">{entry.totalSummits} logged</Typography>
+                )}
+                {metric !== "unique" && (
+                  <Typography variant="caption" color="text.disabled">{entry.uniquePeaks}/58 unique</Typography>
+                )}
+              </Stack>
+            </Box>
+
+            <Chip
+              icon={currentTab.icon as React.ReactElement}
+              label={currentTab.unit(val)}
+              size="small"
+              color={isTopThree ? "primary" : "default"}
+              variant={isTopThree ? "filled" : "outlined"}
+              sx={{ fontWeight: 600, fontSize: "0.75rem" }}
+            />
+          </Box>
+        );
+      })}
+    </Paper>
+  );
+}
+
+export default function LeaderboardPage() {
+  const { accessToken } = useAuth();
+  const [metric, setMetric] = useState<Metric>("summits");
+  const [view, setView] = useState<"global" | "friends">("global");
+
+  const { data: globalData, isLoading: globalLoading } = trpc.user.leaderboard.useQuery({ metric, limit: 50 });
+  const { data: friendsData, isLoading: friendsLoading } = trpc.user.friendsLeaderboard.useQuery(
+    { metric },
+    { enabled: !!accessToken && view === "friends" }
+  );
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", pb: { xs: 10, md: 4 } }}>
@@ -66,6 +194,26 @@ export default function LeaderboardPage() {
           </Box>
         </Stack>
 
+        {/* Global / Friends toggle */}
+        {accessToken && (
+          <Stack direction="row" spacing={1} mb={2}>
+            <Chip
+              label="Global"
+              onClick={() => setView("global")}
+              color={view === "global" ? "primary" : "default"}
+              variant={view === "global" ? "filled" : "outlined"}
+              sx={{ fontWeight: 600 }}
+            />
+            <Chip
+              label="Friends"
+              onClick={() => setView("friends")}
+              color={view === "friends" ? "primary" : "default"}
+              variant={view === "friends" ? "filled" : "outlined"}
+              sx={{ fontWeight: 600 }}
+            />
+          </Stack>
+        )}
+
         {/* Metric tabs */}
         <Tabs
           value={metric}
@@ -77,104 +225,22 @@ export default function LeaderboardPage() {
           ))}
         </Tabs>
 
-        {/* Rankings */}
-        <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
-          {isLoading ? (
-            Array.from({ length: 10 }).map((_, i) => (
-              <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, py: 1.5, borderBottom: i < 9 ? "1px solid" : "none", borderColor: "divider" }}>
-                <Skeleton variant="circular" width={32} height={32} />
-                <Skeleton variant="circular" width={36} height={36} />
-                <Box sx={{ flex: 1 }}>
-                  <Skeleton width="40%" height={18} />
-                  <Skeleton width="25%" height={14} />
-                </Box>
-                <Skeleton width={80} height={18} />
-              </Box>
-            ))
-          ) : !data || data.length === 0 ? (
-            <Box sx={{ py: 6, textAlign: "center" }}>
-              <Typography color="text.secondary">No data yet — start logging summits!</Typography>
-            </Box>
-          ) : (
-            data.map((entry, i) => {
-              const isTopThree = entry.rank <= 3;
-              const val = metricValue(entry, metric);
-              return (
-                <Box
-                  key={entry.user.id}
-                  sx={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 2,
-                    px: 2,
-                    py: 1.5,
-                    bgcolor: rankBg(entry.rank),
-                    borderBottom: i < data.length - 1 ? "1px solid" : "none",
-                    borderColor: "divider",
-                    transition: "background 0.15s",
-                    "&:hover": { bgcolor: "action.hover" },
-                  }}
-                >
-                  {/* Rank */}
-                  <Box sx={{ width: 32, textAlign: "center", flexShrink: 0 }}>
-                    {isTopThree ? (
-                      <Tooltip title={MEDAL_LABELS[entry.rank - 1]}>
-                        <EmojiEventsIcon sx={{ fontSize: 22, color: MEDAL_COLORS[entry.rank - 1] }} />
-                      </Tooltip>
-                    ) : (
-                      <Typography variant="body2" color="text.disabled" fontWeight={600}>
-                        {entry.rank}
-                      </Typography>
-                    )}
-                  </Box>
-
-                  {/* Avatar */}
-                  <Avatar
-                    component={NextLink}
-                    href={`/users/${entry.user.id}`}
-                    src={entry.user.avatar ?? undefined}
-                    sx={{ width: 36, height: 36, fontSize: 13, flexShrink: 0, textDecoration: "none", fontWeight: 700 }}
-                  >
-                    {!entry.user.avatar && (entry.user.name ?? entry.user.email).slice(0, 2).toUpperCase()}
-                  </Avatar>
-
-                  {/* Name */}
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography
-                      component={NextLink}
-                      href={`/users/${entry.user.id}`}
-                      variant="body2"
-                      fontWeight={700}
-                      noWrap
-                      sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" }, display: "block" }}
-                    >
-                      {entry.user.name ?? entry.user.email.split("@")[0]}
-                    </Typography>
-                    {/* Secondary stats */}
-                    <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-                      {metric !== "summits" && (
-                        <Typography variant="caption" color="text.disabled">{entry.totalSummits} logged</Typography>
-                      )}
-                      {metric !== "unique" && (
-                        <Typography variant="caption" color="text.disabled">{entry.uniquePeaks}/58 unique</Typography>
-                      )}
-                    </Stack>
-                  </Box>
-
-                  {/* Primary metric chip */}
-                  <Chip
-                    icon={currentTab.icon as React.ReactElement}
-                    label={currentTab.unit(val)}
-                    size="small"
-                    color={isTopThree ? "primary" : "default"}
-                    variant={isTopThree ? "filled" : "outlined"}
-                    sx={{ fontWeight: 600, fontSize: "0.75rem" }}
-                  />
-                </Box>
-              );
-            })
-          )}
-        </Paper>
+        {view === "global" ? (
+          <RankingList
+            data={globalData}
+            isLoading={globalLoading}
+            metric={metric}
+            emptyMessage="No data yet — start logging summits!"
+          />
+        ) : (
+          <RankingList
+            data={friendsData}
+            isLoading={friendsLoading}
+            metric={metric}
+            emptyMessage="Follow other climbers to see how you compare!"
+            highlightMe
+          />
+        )}
       </Box>
       <BottomNav />
     </Box>

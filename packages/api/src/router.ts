@@ -13,6 +13,9 @@ import { commentRouter } from "./comment/comment.router.js";
 import { gearRouter } from "./gear/gear.router.js";
 import { pushRouter } from "./push/push.router.js";
 import { listRouter } from "./list/list.router.js";
+import { kudoRouter } from "./kudo/kudo.router.js";
+import { plannedHikeRouter } from "./plannedHike/plannedHike.router.js";
+import { conditionsRouter } from "./conditions/conditions.router.js";
 
 export const appRouter = router({
   auth: authRouter,
@@ -29,6 +32,9 @@ export const appRouter = router({
   gear: gearRouter,
   push: pushRouter,
   list: listRouter,
+  kudo: kudoRouter,
+  plannedHike: plannedHikeRouter,
+  conditions: conditionsRouter,
 });
 
 export type AppRouter = typeof appRouter;

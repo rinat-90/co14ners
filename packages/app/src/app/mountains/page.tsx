@@ -102,6 +102,12 @@ export default function MountainsPage() {
   const { data: completions } = trpc.user.completions.useQuery(undefined, { enabled: !!accessToken });
   const { data: favorites } = trpc.user.favorites.useQuery(undefined, { enabled: !!accessToken });
   const { data: allConditions } = trpc.mountain.allConditions.useQuery();
+  const { data: recentCheckIns } = trpc.conditions.allRecent.useQuery();
+  const checkInMap = useMemo(() => {
+    const map = new Map<string, { latest: string; latestAt: Date; total: number }>();
+    for (const c of recentCheckIns ?? []) map.set(c.mountainId, { latest: c.latest, latestAt: new Date(c.latestAt), total: c.total });
+    return map;
+  }, [recentCheckIns]);
 
   const summitedIds = useMemo(() => new Set(completions?.map((c) => c.mountainId) ?? []), [completions]);
   const savedIds = useMemo(() => new Set(favorites?.map((f) => f.mountainId) ?? []), [favorites]);
@@ -501,6 +507,22 @@ export default function MountainsPage() {
                                 />
                               </Tooltip>
                             )}
+                            {checkInMap.has(m.id) && (() => {
+                              const ci = checkInMap.get(m.id)!;
+                              const EMOJIS: Record<string, string> = { CLEAR: "☀️", SNOW: "❄️", ICY: "🧊", MUDDY: "💧", WINDY: "💨" };
+                              const hoursAgo = Math.round((Date.now() - ci.latestAt.getTime()) / 3600000);
+                              const timeLabel = hoursAgo < 1 ? "just now" : `${hoursAgo}h ago`;
+                              return (
+                                <Tooltip title={`${ci.total} condition report${ci.total !== 1 ? "s" : ""} in last 48h`}>
+                                  <Chip
+                                    label={`${EMOJIS[ci.latest] ?? ""}${timeLabel}`}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{ height: 18, fontSize: "0.65rem", "& .MuiChip-label": { px: 0.75 } }}
+                                  />
+                                </Tooltip>
+                              );
+                            })()}
                           </Stack>
                         </CardContent>
                       </CardActionArea>

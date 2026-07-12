@@ -132,6 +132,8 @@ export const userRouter = router({
 
   achievements: protectedProcedure.query(({ ctx }) => userService.getAchievements(ctx.user.id)),
 
+  streak: protectedProcedure.query(({ ctx }) => userService.getStreak(ctx.user.id)),
+
   publicProfile: publicProcedure
     .input(z.object({ userId: z.string() }))
     .query(({ input }) => userService.getPublicProfile(input.userId)),
@@ -305,6 +307,103 @@ export const userRouter = router({
         .sort((a, b) => b.sharedPeaks - a.sharedPeaks)
         .slice(0, input.limit)
         .map(({ user, sharedPeaks }) => ({ ...user, sharedPeaks }));
+    }),
+
+  friendsLeaderboard: protectedProcedure
+    .input(z.object({ metric: z.enum(["summits", "elevation", "unique"]).default("summits") }))
+    .query(async ({ ctx, input }) => {
+      const follows = await prisma.follow.findMany({
+        where: { followerId: ctx.user.id },
+        select: { followingId: true },
+      });
+      // Include self in the ranking
+      const groupIds = [ctx.user.id, ...follows.map((f) => f.followingId)];
+
+      const completions = await prisma.completion.findMany({
+        where: { isPrivate: false, userId: { in: groupIds } },
+        select: {
+          userId: true,
+          mountainId: true,
+          mountain: { select: { elevationGain: true } },
+        },
+      });
+
+      const byUser = new Map<string, { totalSummits: number; totalElevation: number; uniquePeaks: Set<string> }>();
+      for (const c of completions) {
+        const agg = byUser.get(c.userId) ?? { totalSummits: 0, totalElevation: 0, uniquePeaks: new Set() };
+        agg.totalSummits += 1;
+        agg.totalElevation += c.mountain.elevationGain ?? 0;
+        agg.uniquePeaks.add(c.mountainId);
+        byUser.set(c.userId, agg);
+      }
+
+      // Ensure all group members appear even if 0 summits
+      for (const id of groupIds) {
+        if (!byUser.has(id)) byUser.set(id, { totalSummits: 0, totalElevation: 0, uniquePeaks: new Set() });
+      }
+
+      const sorted = [...byUser.entries()]
+        .map(([userId, agg]) => ({ userId, totalSummits: agg.totalSummits, totalElevation: agg.totalElevation, uniquePeaks: agg.uniquePeaks.size }))
+        .sort((a, b) => {
+          if (input.metric === "elevation") return b.totalElevation - a.totalElevation;
+          if (input.metric === "unique") return b.uniquePeaks - a.uniquePeaks;
+          return b.totalSummits - a.totalSummits;
+        });
+
+      const users = await prisma.user.findMany({
+        where: { id: { in: sorted.map((r) => r.userId) } },
+        select: { id: true, name: true, email: true, avatar: true },
+      });
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
+      return sorted.map((r, i) => ({
+        rank: i + 1,
+        isMe: r.userId === ctx.user.id,
+        user: userMap.get(r.userId)!,
+        totalSummits: r.totalSummits,
+        totalElevation: r.totalElevation,
+        uniquePeaks: r.uniquePeaks,
+      }));
+    }),
+
+  compare: protectedProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      async function getStats(userId: string) {
+        const [completions, user, achievementCount, streak] = await Promise.all([
+          prisma.completion.findMany({
+            where: { userId, isPrivate: false },
+            select: {
+              mountainId: true,
+              mountain: { select: { altitude: true, name: true, elevationGain: true } },
+            },
+          }),
+          prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true, name: true, email: true, avatar: true } }),
+          prisma.userAchievement.count({ where: { userId } }),
+          userService.getStreak(userId),
+        ]);
+
+        const uniqueMountainIds = new Set(completions.map((c) => c.mountainId));
+        const totalElevation = completions.reduce((sum, c) => sum + (c.mountain.elevationGain ?? 0), 0);
+        const topPeak = [...completions]
+          .sort((a, b) => b.mountain.altitude - a.mountain.altitude)
+          .find((_, i, arr) => arr.findIndex((x) => x.mountainId === arr[i].mountainId) === i)
+          ?.mountain ?? null;
+
+        return {
+          user,
+          totalSummits: completions.length,
+          uniquePeaks: uniqueMountainIds.size,
+          totalElevation,
+          topPeak,
+          achievementCount,
+          currentStreak: streak.current,
+          longestStreak: streak.longest,
+        };
+      }
+
+      const [me, them] = await Promise.all([getStats(ctx.user.id), getStats(input.userId)]);
+      return { me, them };
     }),
 
   leaderboard: publicProcedure

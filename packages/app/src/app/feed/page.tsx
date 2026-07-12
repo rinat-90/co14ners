@@ -24,6 +24,7 @@ import StarIcon from "@mui/icons-material/Star";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
+import KudoButton from "@/components/KudoButton";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
@@ -126,14 +127,18 @@ type FeedEvent = {
   rating: number | null;
   reportTitle: string | null;
   reportId: string | null;
+  completionId: string | null;
   conditions: string | null;
 };
 
-function EventList({ events, isLoading, emptyMessage, emptyAction }: {
+type KudoCounts = Record<string, { count: number; kudoed: boolean }>;
+
+function EventList({ events, isLoading, emptyMessage, emptyAction, kudoCounts = {} }: {
   events: FeedEvent[] | undefined;
   isLoading: boolean;
   emptyMessage: string;
   emptyAction?: React.ReactNode;
+  kudoCounts?: KudoCounts;
 }) {
   if (isLoading) {
     return (
@@ -260,7 +265,25 @@ function EventList({ events, isLoading, emptyMessage, emptyAction }: {
               )}
             </Box>
 
-            <TerrainIcon sx={{ color: "text.disabled", fontSize: "1.25rem", flexShrink: 0, mt: 0.25 }} />
+            <Stack alignItems="flex-end" spacing={0.5} flexShrink={0}>
+              <TerrainIcon sx={{ color: "text.disabled", fontSize: "1.25rem" }} />
+              {event.type === "summit" && event.completionId && (
+                <KudoButton
+                  targetId={event.completionId}
+                  targetType="COMPLETION"
+                  initialCount={kudoCounts[event.completionId]?.count ?? 0}
+                  initialKudoed={kudoCounts[event.completionId]?.kudoed ?? false}
+                />
+              )}
+              {event.type === "report" && event.reportId && (
+                <KudoButton
+                  targetId={event.reportId}
+                  targetType="TRIP_REPORT"
+                  initialCount={kudoCounts[event.reportId]?.count ?? 0}
+                  initialKudoed={kudoCounts[event.reportId]?.kudoed ?? false}
+                />
+              )}
+            </Stack>
           </Stack>
         </Box>
       ))}
@@ -270,6 +293,16 @@ function EventList({ events, isLoading, emptyMessage, emptyAction }: {
 
 function FollowingPanel() {
   const { data: events, isLoading } = trpc.feed.followingFeed.useQuery({ limit: 30 });
+
+  const kudoTargets: { id: string; type: "COMPLETION" | "TRIP_REPORT" }[] = (events ?? []).flatMap((e) => {
+    if (e.type === "summit" && e.completionId) return [{ id: e.completionId, type: "COMPLETION" as const }];
+    if (e.type === "report" && e.reportId) return [{ id: e.reportId, type: "TRIP_REPORT" as const }];
+    return [] as { id: string; type: "COMPLETION" | "TRIP_REPORT" }[];
+  });
+  const { data: kudoCounts } = trpc.kudo.counts.useQuery(
+    { targets: kudoTargets },
+    { enabled: kudoTargets.length > 0 }
+  );
 
   return (
     <EventList
@@ -281,6 +314,7 @@ function FollowingPanel() {
           Follow climbers from the leaderboard or their profiles to see their activity here.
         </Typography>
       }
+      kudoCounts={kudoCounts ?? {}}
     />
   );
 }
@@ -304,6 +338,16 @@ function FeedContent() {
   }, [accessToken, searchParams]);
 
   const { data: events, isLoading } = trpc.feed.list.useQuery({ limit: 30 });
+
+  const kudoTargets: { id: string; type: "COMPLETION" | "TRIP_REPORT" }[] = (events ?? []).flatMap((e) => {
+    if (e.type === "summit" && e.completionId) return [{ id: e.completionId, type: "COMPLETION" as const }];
+    if (e.type === "report" && e.reportId) return [{ id: e.reportId, type: "TRIP_REPORT" as const }];
+    return [] as { id: string; type: "COMPLETION" | "TRIP_REPORT" }[];
+  });
+  const { data: kudoCounts } = trpc.kudo.counts.useQuery(
+    { targets: kudoTargets },
+    { enabled: kudoTargets.length > 0 }
+  );
 
   return (
     <Box sx={{ maxWidth: 680, mx: "auto", px: { xs: 2, md: 4 }, pt: 4 }}>
@@ -343,6 +387,7 @@ function FeedContent() {
           emptyAction={
             <Button variant="contained" component={NextLink} href="/mountains">Browse 14ers</Button>
           }
+          kudoCounts={kudoCounts ?? {}}
         />
       )}
       {accessToken && tab === 1 && <FollowingPanel />}

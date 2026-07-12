@@ -5,6 +5,10 @@ import { listMountainsSchema, getMountainSchema, getMountainBySlugSchema } from 
 import { prisma } from "../lib/prisma.js";
 import { TRPCError } from "@trpc/server";
 
+function toSlug(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
 export const mountainRouter = router({
   list: publicProcedure
     .input(listMountainsSchema)
@@ -114,5 +118,46 @@ export const mountainRouter = router({
         prisma.mountain.update({ where: { id: photo.mountainId }, data: { imageUrl: photo.url } }),
       ]);
       return { ok: true };
+    }),
+
+  alsoClimbed: publicProcedure
+    .input(z.object({ mountainId: z.string(), limit: z.number().int().min(1).max(10).default(5) }))
+    .query(async ({ input }) => {
+      const { mountainId, limit } = input;
+
+      const climbers = await prisma.completion.findMany({
+        where: { mountainId, isPrivate: false },
+        select: { userId: true },
+        distinct: ["userId"],
+      });
+
+      if (climbers.length === 0) return [];
+
+      const climberIds = climbers.map((c) => c.userId);
+
+      const groups = await prisma.completion.groupBy({
+        by: ["mountainId"],
+        where: {
+          userId: { in: climberIds },
+          mountainId: { not: mountainId },
+          isPrivate: false,
+        },
+        _count: { userId: true },
+        orderBy: { _count: { userId: "desc" } },
+        take: limit,
+      });
+
+      if (groups.length === 0) return [];
+
+      const mountains = await prisma.mountain.findMany({
+        where: { id: { in: groups.map((g) => g.mountainId) } },
+        select: { id: true, name: true, altitude: true, difficulty: true },
+      });
+
+      const mountainMap = new Map(mountains.map((m) => [m.id, { ...m, slug: toSlug(m.name) }]));
+
+      return groups
+        .map((g) => ({ mountain: mountainMap.get(g.mountainId)!, count: g._count.userId }))
+        .filter((r) => r.mountain);
     }),
 });

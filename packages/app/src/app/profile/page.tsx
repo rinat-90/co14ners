@@ -488,6 +488,8 @@ export default function ProfilePage() {
   const { data: achievements } = trpc.user.achievements.useQuery(undefined, { enabled: !!accessToken });
   const { data: myReports, isLoading: reportsLoading } = trpc.tripReport.myReports.useQuery(undefined, { enabled: !!accessToken });
   const { data: myLists, isLoading: listsLoading } = trpc.list.myLists.useQuery(undefined, { enabled: !!accessToken });
+  const { data: streak } = trpc.user.streak.useQuery(undefined, { enabled: !!accessToken });
+  const { data: myPlans } = trpc.plannedHike.myPlans.useQuery(undefined, { enabled: !!accessToken });
 
   const earnedTypes = new Set(achievements?.map((a) => a.type) ?? []);
   const earnedCount = earnedTypes.size;
@@ -500,6 +502,9 @@ export default function ProfilePage() {
   });
   const deleteReportMutation = trpc.tripReport.delete.useMutation({
     onSuccess: () => utils.tripReport.myReports.invalidate(),
+  });
+  const cancelPlanMutation = trpc.plannedHike.cancel.useMutation({
+    onSuccess: () => utils.plannedHike.myPlans.invalidate(),
   });
 
   const updateProfileMutation = trpc.user.updateProfile.useMutation({
@@ -621,6 +626,15 @@ export default function ProfilePage() {
                     </Typography>
                   </Stack>
                 )}
+                {streak && streak.current > 0 && (
+                  <Tooltip title={`Longest streak: ${streak.longest} month${streak.longest !== 1 ? "s" : ""}`}>
+                    <Chip
+                      label={`🔥 ${streak.current}-month streak`}
+                      size="small"
+                      sx={{ bgcolor: "rgba(255,255,255,0.15)", color: "white", fontWeight: 600, fontSize: "0.75rem", cursor: "default" }}
+                    />
+                  </Tooltip>
+                )}
                 <Typography variant="caption" sx={{ opacity: 0.6 }}>
                   Member since {me?.createdAt ? fmtDate(me.createdAt) : ""}
                 </Typography>
@@ -701,6 +715,48 @@ export default function ProfilePage() {
             {/* ── Tab 0: Summits ── */}
             {tab === 0 && (
               <>
+                {/* Upcoming planned hikes */}
+                {myPlans && myPlans.length > 0 && (
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 3 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
+                      <EmojiEventsIcon sx={{ fontSize: "1rem", color: "warning.main" }} />
+                      <Typography variant="subtitle2" fontWeight={700}>Upcoming Plans ({myPlans.length})</Typography>
+                    </Stack>
+                    <Stack divider={<Divider />} spacing={0}>
+                      {myPlans.map((plan) => (
+                        <Box key={plan.id} sx={{ py: 1.25, display: "flex", alignItems: "center", gap: 1.5 }}>
+                          <TerrainIcon sx={{ fontSize: "1rem", color: "primary.main", flexShrink: 0 }} />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography
+                              component={NextLink}
+                              href={`/mountains/${toSlug(plan.mountain.name)}`}
+                              variant="body2"
+                              fontWeight={600}
+                              sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                            >
+                              {plan.mountain.name}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {new Date(plan.plannedDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                              {!plan.isPublic && " · Private"}
+                            </Typography>
+                          </Box>
+                          <Tooltip title="Cancel plan">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              disabled={cancelPlanMutation.isPending}
+                              onClick={() => cancelPlanMutation.mutate({ id: plan.id })}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Paper>
+                )}
+
                 {completionsLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <Skeleton key={i} variant="rounded" height={90} sx={{ mb: 2, borderRadius: 2 }} />

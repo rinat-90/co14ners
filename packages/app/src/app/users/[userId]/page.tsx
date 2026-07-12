@@ -16,6 +16,7 @@ import ArticleIcon from "@mui/icons-material/Article";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LockIcon from "@mui/icons-material/Lock";
 import MapIcon from "@mui/icons-material/Map";
+import CompareArrowsIcon from "@mui/icons-material/CompareArrows";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonRemoveIcon from "@mui/icons-material/PersonRemove";
 import TerrainIcon from "@mui/icons-material/Terrain";
@@ -171,28 +172,47 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
               )}
             </Box>
             {!isLoading && !isOwnProfile && accessToken && (
-              <Button
-                variant={isFollowing ? "outlined" : "contained"}
-                size="small"
-                startIcon={isFollowing ? <PersonRemoveIcon /> : <PersonAddIcon />}
-                disabled={followMutation.isPending || unfollowMutation.isPending}
-                onClick={() =>
-                  isFollowing
-                    ? unfollowMutation.mutate({ userId })
-                    : followMutation.mutate({ userId })
-                }
-                sx={{
-                  alignSelf: "center",
-                  textTransform: "none",
-                  borderRadius: 2,
-                  ...(isFollowing
-                    ? { color: "rgba(255,255,255,0.85)", borderColor: "rgba(255,255,255,0.5)", "&:hover": { borderColor: "white", bgcolor: "rgba(255,255,255,0.1)" } }
-                    : { bgcolor: "white", color: "primary.main", "&:hover": { bgcolor: "rgba(255,255,255,0.9)" } }
-                  ),
-                }}
-              >
-                {isFollowing ? "Unfollow" : "Follow"}
-              </Button>
+              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                <Button
+                  variant={isFollowing ? "outlined" : "contained"}
+                  size="small"
+                  startIcon={isFollowing ? <PersonRemoveIcon /> : <PersonAddIcon />}
+                  disabled={followMutation.isPending || unfollowMutation.isPending}
+                  onClick={() =>
+                    isFollowing
+                      ? unfollowMutation.mutate({ userId })
+                      : followMutation.mutate({ userId })
+                  }
+                  sx={{
+                    alignSelf: "center",
+                    textTransform: "none",
+                    borderRadius: 2,
+                    ...(isFollowing
+                      ? { color: "rgba(255,255,255,0.85)", borderColor: "rgba(255,255,255,0.5)", "&:hover": { borderColor: "white", bgcolor: "rgba(255,255,255,0.1)" } }
+                      : { bgcolor: "white", color: "primary.main", "&:hover": { bgcolor: "rgba(255,255,255,0.9)" } }
+                    ),
+                  }}
+                >
+                  {isFollowing ? "Unfollow" : "Follow"}
+                </Button>
+                <Button
+                  component={NextLink}
+                  href={`/compare/${userId}`}
+                  variant="outlined"
+                  size="small"
+                  startIcon={<CompareArrowsIcon />}
+                  sx={{
+                    alignSelf: "center",
+                    textTransform: "none",
+                    borderRadius: 2,
+                    color: "rgba(255,255,255,0.85)",
+                    borderColor: "rgba(255,255,255,0.5)",
+                    "&:hover": { borderColor: "white", bgcolor: "rgba(255,255,255,0.1)" },
+                  }}
+                >
+                  Compare
+                </Button>
+              </Stack>
             )}
           </Stack>
         </Box>

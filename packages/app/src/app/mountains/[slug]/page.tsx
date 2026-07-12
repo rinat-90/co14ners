@@ -67,12 +67,15 @@ import LockIcon from "@mui/icons-material/Lock";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
 import NaturePeopleIcon from "@mui/icons-material/NaturePeople";
 import RouteIcon from "@mui/icons-material/Route";
+import LandscapeIcon from "@mui/icons-material/Landscape";
 import StarIcon from "@mui/icons-material/Star";
 import ShareIcon from "@mui/icons-material/Share";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
 import RangeLabel from "@/components/mountains/RangeLabel";
@@ -80,6 +83,7 @@ import TrailMap from "@/components/mountains/TrailMap";
 import ElevationProfile from "@/components/mountains/ElevationProfile";
 import GearChecklist from "@/components/mountains/GearChecklist";
 import PhotoGallery from "@/components/mountains/PhotoGallery";
+import KudoButton from "@/components/KudoButton";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
@@ -1159,6 +1163,12 @@ function TripReportsSection({
 
   const { data: reports, isLoading } = trpc.tripReport.list.useQuery({ mountainId });
 
+  const reportKudoTargets = (reports ?? []).map((r) => ({ id: r.id, type: "TRIP_REPORT" as const }));
+  const { data: reportKudoCounts } = trpc.kudo.counts.useQuery(
+    { targets: reportKudoTargets },
+    { enabled: reportKudoTargets.length > 0 }
+  );
+
   const deleteMutation = trpc.tripReport.delete.useMutation({
     onSuccess: () => utils.tripReport.list.invalidate({ mountainId }),
   });
@@ -1277,6 +1287,14 @@ function TripReportsSection({
                       </Box>
                     )}
                     <CommentThread tripReportId={report.id} accessToken={accessToken} userId={user?.id ?? null} initialCount={report._count.comments} />
+                    <Box mt={0.75}>
+                      <KudoButton
+                        targetId={report.id}
+                        targetType="TRIP_REPORT"
+                        initialCount={reportKudoCounts?.[report.id]?.count ?? 0}
+                        initialKudoed={reportKudoCounts?.[report.id]?.kudoed ?? false}
+                      />
+                    </Box>
                   </Box>
                   {/* Edit/Delete own report */}
                   {user?.id === report.user.id && (
@@ -1865,6 +1883,9 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
   const [uploadOpen, setUploadOpen] = useState(false);
   const [photoManagerOpen, setPhotoManagerOpen] = useState(false);
   const [listAnchor, setListAnchor] = useState<null | HTMLElement>(null);
+  const [planDialogOpen, setPlanDialogOpen] = useState(false);
+  const [planDate, setPlanDate] = useState("");
+  const [planPublic, setPlanPublic] = useState(true);
   const [newListName, setNewListName] = useState("");
   const [editingTrail, setEditingTrail] = useState<TrailForEdit | null>(null);
   const [selectedTrailId, setSelectedTrailId] = useState<string>("");
@@ -1915,6 +1936,47 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
     { mountainId: id },
     { enabled: !!id }
   );
+
+  const utils2 = trpc.useUtils();
+  const { data: checkIns } = trpc.conditions.forMountain.useQuery(
+    { mountainId: id },
+    { enabled: !!id }
+  );
+  const { data: myCheckIn } = trpc.conditions.myCheckIn.useQuery(
+    { mountainId: id },
+    { enabled: !!accessToken && !!id }
+  );
+  const checkInMutation = trpc.conditions.checkIn.useMutation({
+    onSuccess: () => {
+      utils2.conditions.forMountain.invalidate({ mountainId: id });
+      utils2.conditions.myCheckIn.invalidate({ mountainId: id });
+    },
+  });
+
+  const { data: alsoClimbed } = trpc.mountain.alsoClimbed.useQuery(
+    { mountainId: id },
+    { enabled: !!id }
+  );
+  const { data: plannedHikers } = trpc.plannedHike.forMountain.useQuery(
+    { mountainId: id },
+    { enabled: !!id }
+  );
+  const { data: myPlan } = trpc.plannedHike.myPlanForMountain.useQuery(
+    { mountainId: id },
+    { enabled: !!accessToken && !!id }
+  );
+  const planMutation = trpc.plannedHike.plan.useMutation({
+    onSuccess: () => {
+      utils.plannedHike.forMountain.invalidate({ mountainId: id });
+      utils.plannedHike.myPlanForMountain.invalidate({ mountainId: id });
+    },
+  });
+  const cancelPlanMutation = trpc.plannedHike.cancel.useMutation({
+    onSuccess: () => {
+      utils.plannedHike.forMountain.invalidate({ mountainId: id });
+      utils.plannedHike.myPlanForMountain.invalidate({ mountainId: id });
+    },
+  });
 
   const deleteTrailMutation = trpc.trail.delete.useMutation({
     onSuccess: () => utils.mountain.getBySlug.invalidate({ slug }),
@@ -2393,6 +2455,45 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
               </>
             )}
 
+            {/* Quick Conditions Tap */}
+            <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
+              <Stack direction="row" spacing={1} alignItems="center" mb={1.25}>
+                <WbSunnyIcon sx={{ fontSize: "1.1rem", color: "warning.main" }} />
+                <Typography variant="subtitle2" fontWeight={700}>Conditions Today</Typography>
+              </Stack>
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap mb={checkIns && checkIns.length > 0 ? 1.25 : 0}>
+                {(["CLEAR", "SNOW", "ICY", "MUDDY", "WINDY"] as const).map((cond) => {
+                  const LABELS: Record<string, string> = { CLEAR: "☀️ Clear", SNOW: "❄️ Snow", ICY: "🧊 Icy", MUDDY: "💧 Muddy", WINDY: "💨 Windy" };
+                  const count = checkIns?.filter((c) => c.condition === cond).length ?? 0;
+                  const isActive = myCheckIn?.condition === cond;
+                  return (
+                    <Chip
+                      key={cond}
+                      label={`${LABELS[cond]}${count > 0 ? ` · ${count}` : ""}`}
+                      size="small"
+                      variant={isActive ? "filled" : "outlined"}
+                      color={isActive ? "primary" : "default"}
+                      onClick={accessToken ? () => checkInMutation.mutate({ mountainId: id, condition: cond }) : undefined}
+                      disabled={checkInMutation.isPending}
+                      sx={{
+                        fontWeight: isActive ? 700 : 400,
+                        cursor: accessToken ? "pointer" : "default",
+                        fontSize: "0.75rem",
+                      }}
+                    />
+                  );
+                })}
+              </Stack>
+              {!accessToken && (
+                <Typography variant="caption" color="text.disabled">Sign in to report conditions</Typography>
+              )}
+              {checkIns && checkIns.length > 0 && (
+                <Typography variant="caption" color="text.secondary">
+                  {checkIns.length} report{checkIns.length !== 1 ? "s" : ""} in the last 48h
+                </Typography>
+              )}
+            </Paper>
+
             {/* Recent Conditions */}
             {conditions && conditions.length > 0 && (
               <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
@@ -2432,11 +2533,124 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
               </Paper>
             )}
 
+            {/* Planning to Climb */}
+            {((plannedHikers && plannedHikers.length > 0) || accessToken) && (
+              <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1.5} justifyContent="space-between">
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <EmojiEventsIcon sx={{ fontSize: "1.1rem", color: "warning.main" }} />
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      Planning to Climb
+                      {plannedHikers && plannedHikers.length > 0 && (
+                        <Typography component="span" variant="caption" color="text.secondary" ml={0.75}>
+                          ({plannedHikers.length})
+                        </Typography>
+                      )}
+                    </Typography>
+                  </Stack>
+                  {accessToken && !myPlan && (
+                    <Button size="small" variant="outlined" sx={{ borderRadius: 2, fontSize: "0.75rem" }} onClick={() => setPlanDialogOpen(true)}>
+                      Plan this hike
+                    </Button>
+                  )}
+                </Stack>
+
+                {myPlan && (
+                  <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2, mb: 1.5, bgcolor: "primary.50" }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                      <Typography variant="body2" fontWeight={600} color="primary.main">
+                        You&apos;re planning: {new Date(myPlan.plannedDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </Typography>
+                      <Button
+                        size="small"
+                        color="error"
+                        variant="text"
+                        disabled={cancelPlanMutation.isPending}
+                        onClick={() => cancelPlanMutation.mutate({ id: myPlan.id })}
+                        sx={{ fontSize: "0.7rem", minWidth: 0 }}
+                      >
+                        Cancel
+                      </Button>
+                    </Stack>
+                  </Paper>
+                )}
+
+                {plannedHikers && plannedHikers.length > 0 ? (
+                  <Stack spacing={0} divider={<Divider />}>
+                    {plannedHikers.map((ph) => (
+                      <Box key={ph.id} sx={{ py: 1 }}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Avatar
+                            component={NextLink}
+                            href={`/users/${ph.user.id}`}
+                            src={ph.user.avatar ?? undefined}
+                            sx={{ width: 24, height: 24, fontSize: 10, bgcolor: "primary.light", textDecoration: "none", flexShrink: 0 }}
+                          >
+                            {!ph.user.avatar && (ph.user.name ?? ph.user.email).slice(0, 2).toUpperCase()}
+                          </Avatar>
+                          <Typography
+                            component={NextLink}
+                            href={`/users/${ph.user.id}`}
+                            variant="caption"
+                            fontWeight={600}
+                            sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                          >
+                            {ph.user.name ?? ph.user.email.split("@")[0]}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" ml="auto !important">
+                            {new Date(ph.plannedDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </Typography>
+                        </Stack>
+                      </Box>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography variant="caption" color="text.secondary">No upcoming plans yet.</Typography>
+                )}
+              </Paper>
+            )}
+
             {/* Gear Checklist */}
             {mountain && (
               <Box mt={2}>
                 <GearChecklist mountainId={id} difficulty={mountain.difficulty} />
               </Box>
+            )}
+
+            {/* Climbers Also Visited */}
+            {alsoClimbed && alsoClimbed.length > 0 && (
+              <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
+                <Typography variant="subtitle2" fontWeight={700} mb={1.5}>Climbers Also Visited</Typography>
+                <Stack spacing={0} divider={<Divider />}>
+                  {alsoClimbed.map(({ mountain: peak, count }) => (
+                    <Box
+                      key={peak.id}
+                      component={NextLink}
+                      href={`/mountains/${peak.slug}`}
+                      sx={{
+                        py: 1.25,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1,
+                        textDecoration: "none",
+                        color: "inherit",
+                        "&:hover .ac-name": { color: "primary.main" },
+                      }}
+                    >
+                      <LandscapeIcon sx={{ fontSize: "1rem", color: "text.disabled", flexShrink: 0 }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography className="ac-name" variant="body2" fontWeight={600} noWrap sx={{ transition: "color 0.15s" }}>
+                          {peak.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {peak.altitude.toLocaleString()} ft
+                        </Typography>
+                      </Box>
+                      <Chip label={`${count}`} size="small" variant="outlined" sx={{ fontSize: "0.7rem", height: 20 }} />
+                    </Box>
+                  ))}
+                </Stack>
+              </Paper>
             )}
 
             {/* Nearby Peaks */}
@@ -2492,6 +2706,44 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
           onAchievements={setAchievementToast}
         />
       )}
+
+      {/* Plan Hike Dialog */}
+      <Dialog open={planDialogOpen} onClose={() => setPlanDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle fontWeight={700}>Plan this Hike</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} pt={0.5}>
+            <TextField
+              label="Planned date"
+              type="date"
+              fullWidth
+              value={planDate}
+              onChange={(e) => setPlanDate(e.target.value)}
+              slotProps={{ inputLabel: { shrink: true } }}
+              inputProps={{ min: new Date().toISOString().slice(0, 10) }}
+            />
+            <FormControlLabel
+              control={<Switch checked={planPublic} onChange={(e) => setPlanPublic(e.target.checked)} />}
+              label={<Typography variant="body2">{planPublic ? "Visible to other climbers" : "Private"}</Typography>}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setPlanDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!planDate || planMutation.isPending}
+            onClick={() => {
+              if (!planDate) return;
+              planMutation.mutate(
+                { mountainId: id, plannedDate: planDate, isPublic: planPublic },
+                { onSuccess: () => setPlanDialogOpen(false) }
+              );
+            }}
+          >
+            Save Plan
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={!!toast}

@@ -40,6 +40,20 @@ enum NotificationType {
   FOLLOW             // someone followed you
   REVIEW_ON_SUMMIT   // someone reviewed a peak you've summited
   COMMENT_ON_REPORT  // someone commented on your trip report
+  KUDO_RECEIVED      // someone kudoed your completion or trip report
+}
+
+enum KudoTargetType {
+  COMPLETION
+  TRIP_REPORT
+}
+
+enum ConditionType {
+  CLEAR
+  SNOW
+  ICY
+  MUDDY
+  WINDY
 }
 
 /// Yosemite Decimal System class used for Colorado 14er routes
@@ -92,6 +106,9 @@ model User {
   pushSubscriptions  PushSubscription[]
   mountainLists      MountainList[]
   notifPrefs         NotificationPreference?
+  kudos              Kudo[]
+  plannedHikes       PlannedHike[]
+  conditionCheckIns  ConditionCheckIn[]
 }
 
 /// Per-user email notification opt-outs
@@ -175,6 +192,8 @@ model Mountain {
   gearChecklists GearChecklist[]
   photos         MountainPhoto[]
   listItems      MountainListItem[]
+  plannedHikes      PlannedHike[]
+  conditionCheckIns ConditionCheckIn[]
 }
 
 /// Admin-uploaded photos for a mountain; one is flagged isMain → synced to Mountain.imageUrl
@@ -358,6 +377,53 @@ model MountainListItem {
 
   @@unique([listId, mountainId])
   @@index([listId])
+}
+
+/// One-tap kudo (like) on a completion or trip report
+model Kudo {
+  id         String         @id @default(cuid())
+  userId     String
+  targetId   String
+  targetType KudoTargetType
+  createdAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetId, targetType])
+  @@index([targetId, targetType])
+}
+
+/// Scheduled future hike — user declares intent to climb a mountain on a date
+model PlannedHike {
+  id          String   @id @default(cuid())
+  userId      String
+  mountainId  String
+  plannedDate DateTime
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mountainId])
+  @@index([mountainId])
+  @@index([plannedDate])
+}
+
+/// Quick one-tap trail condition report (expires after 48h)
+model ConditionCheckIn {
+  id         String        @id @default(cuid())
+  userId     String
+  mountainId String
+  condition  ConditionType
+  checkedAt  DateTime      @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+
+  @@index([mountainId, checkedAt(sort: Desc)])
+  @@index([userId])
 }
 
 /// A logged summit — users can summit the same mountain multiple times

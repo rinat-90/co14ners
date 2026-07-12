@@ -253,6 +253,42 @@ export const userService = {
     });
   },
 
+  async getStreak(userId: string): Promise<{ current: number; longest: number }> {
+    const completions = await prisma.completion.findMany({
+      where: { userId },
+      select: { completedAt: true },
+    });
+
+    if (completions.length === 0) return { current: 0, longest: 0 };
+
+    // Build a sorted set of unique "YYYY-MM" month strings
+    const monthSet = new Set(completions.map((c) => toYearMonth(c.completedAt)));
+    const months = [...monthSet].sort();
+
+    // Longest streak — walk the full array counting consecutive months
+    let longest = 1;
+    let run = 1;
+    for (let i = 1; i < months.length; i++) {
+      if (isNextMonth(months[i - 1], months[i])) {
+        run++;
+        if (run > longest) longest = run;
+      } else {
+        run = 1;
+      }
+    }
+
+    // Current streak — walk backwards from the current month
+    const now = toYearMonth(new Date());
+    let current = 0;
+    let cursor = now;
+    while (monthSet.has(cursor)) {
+      current++;
+      cursor = prevMonth(cursor);
+    }
+
+    return { current, longest };
+  },
+
   async updateEmail(userId: string, newEmail: string, currentPassword: string) {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const valid = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -274,3 +310,21 @@ export const userService = {
     return { success: true };
   },
 };
+
+// ─── Streak helpers ────────────────────────────────────────────────────────────
+
+function toYearMonth(date: Date): string {
+  return date.toISOString().slice(0, 7); // "YYYY-MM"
+}
+
+function isNextMonth(a: string, b: string): boolean {
+  const [ay, am] = a.split("-").map(Number);
+  const [by, bm] = b.split("-").map(Number);
+  return by * 12 + bm === ay * 12 + am + 1;
+}
+
+function prevMonth(ym: string): string {
+  const [y, m] = ym.split("-").map(Number);
+  if (m === 1) return `${y - 1}-12`;
+  return `${y}-${String(m - 1).padStart(2, "0")}`;
+}

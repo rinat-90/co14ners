@@ -52,6 +52,7 @@ function displayName(name: string | null | undefined, email: string) {
 
 function ProgressSection() {
   const { data: stats, isLoading } = trpc.user.stats.useQuery();
+  const { data: streak } = trpc.user.streak.useQuery();
 
   const unique = stats?.uniqueMountains ?? 0;
   const pct = Math.round((unique / TOTAL_14ERS) * 100);
@@ -87,6 +88,18 @@ function ProgressSection() {
               sx={{ height: 10, borderRadius: 5, bgcolor: "action.hover", "& .MuiLinearProgress-bar": { borderRadius: 5 } }}
             />
           </Tooltip>
+
+          {streak && streak.current > 0 && (
+            <Tooltip title={`Longest streak: ${streak.longest} month${streak.longest !== 1 ? "s" : ""}`}>
+              <Chip
+                label={`🔥 ${streak.current}-month summit streak`}
+                size="small"
+                color="warning"
+                variant="outlined"
+                sx={{ mt: 1.5, fontWeight: 600, cursor: "default" }}
+              />
+            </Tooltip>
+          )}
 
           <Stack
             direction="row"

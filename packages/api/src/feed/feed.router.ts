@@ -55,6 +55,7 @@ export const feedRouter = router({
           rating: null as number | null,
           reportTitle: null as string | null,
           reportId: null as string | null,
+          completionId: c.id,
           conditions: null as string | null,
         })),
         ...recentReviews.map((r) => ({
@@ -67,6 +68,7 @@ export const feedRouter = router({
           rating: r.rating,
           reportTitle: null as string | null,
           reportId: null as string | null,
+          completionId: null as string | null,
           conditions: null as string | null,
         })),
         ...recentReports.map((rp) => ({
@@ -79,6 +81,7 @@ export const feedRouter = router({
           rating: null as number | null,
           reportTitle: rp.title,
           reportId: rp.id,
+          completionId: null as string | null,
           conditions: rp.conditions,
         })),
       ]
@@ -145,6 +148,7 @@ export const feedRouter = router({
           rating: null as number | null,
           reportTitle: null as string | null,
           reportId: null as string | null,
+          completionId: c.id,
           conditions: null as string | null,
         })),
         ...recentReviews.map((r) => ({
@@ -157,6 +161,7 @@ export const feedRouter = router({
           rating: r.rating,
           reportTitle: null as string | null,
           reportId: null as string | null,
+          completionId: null as string | null,
           conditions: null as string | null,
         })),
         ...recentReports.map((rp) => ({
@@ -169,6 +174,7 @@ export const feedRouter = router({
           rating: null as number | null,
           reportTitle: rp.title,
           reportId: rp.id,
+          completionId: null as string | null,
           conditions: rp.conditions,
         })),
       ]
