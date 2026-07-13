@@ -66,6 +66,8 @@ import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 import LockIcon from "@mui/icons-material/Lock";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
 import NaturePeopleIcon from "@mui/icons-material/NaturePeople";
+import GroupsIcon from "@mui/icons-material/Groups";
+import EventIcon from "@mui/icons-material/Event";
 import RouteIcon from "@mui/icons-material/Route";
 import LandscapeIcon from "@mui/icons-material/Landscape";
 import NavigationIcon from "@mui/icons-material/Navigation";
@@ -2164,6 +2166,30 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
     },
   });
 
+  // Group hikes
+  const [groupHikeDialogOpen, setGroupHikeDialogOpen] = useState(false);
+  const [ghTitle, setGhTitle] = useState("");
+  const [ghDate, setGhDate] = useState("");
+  const [ghDesc, setGhDesc] = useState("");
+  const [ghMax, setGhMax] = useState("");
+  const { data: groupHikes } = trpc.groupHike.forMountain.useQuery({ mountainId: id }, { enabled: !!id });
+  const createGroupHikeMutation = trpc.groupHike.create.useMutation({
+    onSuccess: () => {
+      utils.groupHike.forMountain.invalidate({ mountainId: id });
+      setGroupHikeDialogOpen(false);
+      setGhTitle(""); setGhDate(""); setGhDesc(""); setGhMax("");
+    },
+  });
+  const cancelGroupHikeMutation = trpc.groupHike.cancel.useMutation({
+    onSuccess: () => utils.groupHike.forMountain.invalidate({ mountainId: id }),
+  });
+  const rsvpMutation = trpc.groupHike.rsvp.useMutation({
+    onSuccess: () => utils.groupHike.forMountain.invalidate({ mountainId: id }),
+  });
+  const removeRsvpMutation = trpc.groupHike.removeRsvp.useMutation({
+    onSuccess: () => utils.groupHike.forMountain.invalidate({ mountainId: id }),
+  });
+
   const deleteTrailMutation = trpc.trail.delete.useMutation({
     onSuccess: () => utils.mountain.getBySlug.invalidate({ slug }),
   });
@@ -2807,6 +2833,186 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                 )}
               </Paper>
             )}
+
+            {/* Group Hikes */}
+            {((groupHikes && groupHikes.length > 0) || accessToken) && (
+              <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1.5} justifyContent="space-between">
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <GroupsIcon sx={{ fontSize: "1.1rem", color: "info.main" }} />
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      Group Hikes
+                      {groupHikes && groupHikes.length > 0 && (
+                        <Typography component="span" variant="caption" color="text.secondary" ml={0.75}>
+                          ({groupHikes.length})
+                        </Typography>
+                      )}
+                    </Typography>
+                  </Stack>
+                  {accessToken && (
+                    <Button size="small" variant="outlined" sx={{ borderRadius: 2, fontSize: "0.75rem" }} onClick={() => setGroupHikeDialogOpen(true)}>
+                      + Organize
+                    </Button>
+                  )}
+                </Stack>
+
+                {groupHikes && groupHikes.length > 0 ? (
+                  <Stack spacing={1.5}>
+                    {groupHikes.map((gh) => {
+                      const myRsvp = gh.rsvps.find((r) => r.userId === user?.id);
+                      const goingCount = gh.rsvps.filter((r) => r.status === "GOING").length;
+                      const maybeCount = gh.rsvps.filter((r) => r.status === "MAYBE").length;
+                      const isOrganizer = gh.organizer.id === user?.id;
+                      return (
+                        <Paper key={gh.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                          <Stack direction="row" alignItems="flex-start" justifyContent="space-between" mb={0.5}>
+                            <Typography variant="body2" fontWeight={700} sx={{ lineHeight: 1.3 }}>{gh.title}</Typography>
+                            {isOrganizer && (
+                              <IconButton
+                                size="small"
+                                color="error"
+                                disabled={cancelGroupHikeMutation.isPending}
+                                onClick={() => cancelGroupHikeMutation.mutate({ id: gh.id })}
+                                sx={{ ml: 1, mt: -0.5 }}
+                              >
+                                <CancelIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Stack>
+                          <Stack direction="row" spacing={0.75} alignItems="center" mb={0.75}>
+                            <EventIcon sx={{ fontSize: "0.9rem", color: "text.secondary" }} />
+                            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                              {new Date(gh.hikeDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                            </Typography>
+                            <Typography variant="caption" color="text.disabled">·</Typography>
+                            <Avatar
+                              src={gh.organizer.avatar ?? undefined}
+                              sx={{ width: 16, height: 16, fontSize: 9 }}
+                            >
+                              {(gh.organizer.name ?? gh.organizer.email).slice(0, 1).toUpperCase()}
+                            </Avatar>
+                            <Typography variant="caption" color="text.secondary">{gh.organizer.name ?? gh.organizer.email.split("@")[0]}</Typography>
+                          </Stack>
+                          {gh.description && (
+                            <Typography variant="caption" color="text.secondary" display="block" mb={0.75}>{gh.description}</Typography>
+                          )}
+                          <Stack direction="row" spacing={1} alignItems="center" mb={accessToken && !isOrganizer ? 1 : 0}>
+                            {goingCount > 0 && <Chip label={`${goingCount} going`} size="small" sx={{ height: 18, fontSize: "0.65rem", bgcolor: "success.50", color: "success.dark" }} />}
+                            {maybeCount > 0 && <Chip label={`${maybeCount} maybe`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} />}
+                            {gh.maxAttendees && <Chip label={`max ${gh.maxAttendees}`} size="small" sx={{ height: 18, fontSize: "0.65rem" }} variant="outlined" />}
+                          </Stack>
+                          {accessToken && !isOrganizer && (
+                            <Stack direction="row" spacing={0.75}>
+                              {myRsvp?.status === "GOING" ? (
+                                <Chip
+                                  label="✓ Going"
+                                  size="small"
+                                  color="success"
+                                  onDelete={() => removeRsvpMutation.mutate({ groupHikeId: gh.id })}
+                                  sx={{ fontSize: "0.7rem" }}
+                                />
+                              ) : (
+                                <Button
+                                  size="small"
+                                  variant="contained"
+                                  color="success"
+                                  disabled={rsvpMutation.isPending}
+                                  onClick={() => rsvpMutation.mutate({ groupHikeId: gh.id, status: "GOING" })}
+                                  sx={{ fontSize: "0.7rem", py: 0.25, minHeight: 0 }}
+                                >
+                                  Going
+                                </Button>
+                              )}
+                              {myRsvp?.status === "MAYBE" ? (
+                                <Chip
+                                  label="? Maybe"
+                                  size="small"
+                                  onDelete={() => removeRsvpMutation.mutate({ groupHikeId: gh.id })}
+                                  sx={{ fontSize: "0.7rem" }}
+                                />
+                              ) : (
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  disabled={rsvpMutation.isPending}
+                                  onClick={() => rsvpMutation.mutate({ groupHikeId: gh.id, status: "MAYBE" })}
+                                  sx={{ fontSize: "0.7rem", py: 0.25, minHeight: 0 }}
+                                >
+                                  Maybe
+                                </Button>
+                              )}
+                            </Stack>
+                          )}
+                        </Paper>
+                      );
+                    })}
+                  </Stack>
+                ) : (
+                  <Typography variant="caption" color="text.secondary">No upcoming group hikes. Be the first to organize one!</Typography>
+                )}
+              </Paper>
+            )}
+
+            {/* Create Group Hike Dialog */}
+            <Dialog open={groupHikeDialogOpen} onClose={() => setGroupHikeDialogOpen(false)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+              <DialogTitle fontWeight={700}>Organize a Group Hike</DialogTitle>
+              <DialogContent>
+                <Stack spacing={2} sx={{ mt: 1 }}>
+                  <TextField
+                    label="Title *"
+                    value={ghTitle}
+                    onChange={(e) => setGhTitle(e.target.value)}
+                    placeholder="e.g. Sunrise attempt crew"
+                    fullWidth
+                    inputProps={{ maxLength: 120 }}
+                  />
+                  <TextField
+                    label="Hike date *"
+                    type="date"
+                    value={ghDate}
+                    onChange={(e) => setGhDate(e.target.value)}
+                    fullWidth
+                    slotProps={{ inputLabel: { shrink: true } }}
+                  />
+                  <TextField
+                    label="Description (optional)"
+                    value={ghDesc}
+                    onChange={(e) => setGhDesc(e.target.value)}
+                    multiline
+                    rows={2}
+                    fullWidth
+                    inputProps={{ maxLength: 500 }}
+                    placeholder="Meeting point, pace, experience level..."
+                  />
+                  <TextField
+                    label="Max attendees (optional)"
+                    type="number"
+                    value={ghMax}
+                    onChange={(e) => setGhMax(e.target.value)}
+                    fullWidth
+                    inputProps={{ min: 2, max: 200 }}
+                  />
+                </Stack>
+              </DialogContent>
+              <DialogActions sx={{ px: 3, pb: 2 }}>
+                <Button onClick={() => setGroupHikeDialogOpen(false)}>Cancel</Button>
+                <Button
+                  variant="contained"
+                  disabled={!ghTitle.trim() || !ghDate || createGroupHikeMutation.isPending}
+                  onClick={() => {
+                    createGroupHikeMutation.mutate({
+                      mountainId: id,
+                      title: ghTitle.trim(),
+                      hikeDate: new Date(ghDate).toISOString(),
+                      description: ghDesc.trim() || undefined,
+                      maxAttendees: ghMax ? Number(ghMax) : undefined,
+                    });
+                  }}
+                >
+                  {createGroupHikeMutation.isPending ? "Creating…" : "Create Hike"}
+                </Button>
+              </DialogActions>
+            </Dialog>
 
             {/* Gear Checklist */}
             {mountain && (

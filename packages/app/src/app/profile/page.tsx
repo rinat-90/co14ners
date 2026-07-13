@@ -43,6 +43,8 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
+import GroupsIcon from "@mui/icons-material/Groups";
+import EventIcon from "@mui/icons-material/Event";
 import StarIcon from "@mui/icons-material/Star";
 import WhatshotIcon from "@mui/icons-material/Whatshot";
 import {
@@ -578,6 +580,7 @@ export default function ProfilePage() {
   const { data: personalBests } = trpc.user.personalBests.useQuery(undefined, { enabled: !!accessToken });
   const { data: rangeProgress } = trpc.user.rangeProgress.useQuery(undefined, { enabled: !!accessToken });
   const { data: myPlans } = trpc.plannedHike.myPlans.useQuery(undefined, { enabled: !!accessToken });
+  const { data: myGroupHikes } = trpc.groupHike.mine.useQuery(undefined, { enabled: !!accessToken });
 
   const earnedTypes = new Set(achievements?.map((a) => a.type) ?? []);
   const earnedCount = earnedTypes.size;
@@ -593,6 +596,12 @@ export default function ProfilePage() {
   });
   const cancelPlanMutation = trpc.plannedHike.cancel.useMutation({
     onSuccess: () => utils.plannedHike.myPlans.invalidate(),
+  });
+  const cancelGroupHikeMutation = trpc.groupHike.cancel.useMutation({
+    onSuccess: () => utils.groupHike.mine.invalidate(),
+  });
+  const removeGroupHikeRsvpMutation = trpc.groupHike.removeRsvp.useMutation({
+    onSuccess: () => utils.groupHike.mine.invalidate(),
   });
 
   const updateProfileMutation = trpc.user.updateProfile.useMutation({
@@ -835,6 +844,77 @@ export default function ProfilePage() {
                               color="error"
                               disabled={cancelPlanMutation.isPending}
                               onClick={() => cancelPlanMutation.mutate({ id: plan.id })}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Paper>
+                )}
+
+                {/* Group Hikes */}
+                {myGroupHikes && (myGroupHikes.organized.length > 0 || myGroupHikes.rsvped.length > 0) && (
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 3 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
+                      <GroupsIcon sx={{ fontSize: "1rem", color: "info.main" }} />
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        Group Hikes ({myGroupHikes.organized.length + myGroupHikes.rsvped.length})
+                      </Typography>
+                    </Stack>
+                    <Stack divider={<Divider />} spacing={0}>
+                      {myGroupHikes.organized.map((gh) => (
+                        <Box key={gh.id} sx={{ py: 1.25, display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+                          <GroupsIcon sx={{ fontSize: "1rem", color: "info.main", flexShrink: 0, mt: 0.25 }} />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" fontWeight={600}>{gh.title}</Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              <EventIcon sx={{ fontSize: "0.75rem", mr: 0.25 }} />
+                              {new Date(gh.hikeDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                              {" · "}{gh.mountain.name}
+                              {" · "}<Chip label="Organizer" size="small" sx={{ height: 14, fontSize: "0.55rem", fontWeight: 700, bgcolor: "info.50", color: "info.dark" }} />
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {gh.rsvps.filter((r) => r.status === "GOING").length} going · {gh.rsvps.filter((r) => r.status === "MAYBE").length} maybe
+                            </Typography>
+                          </Box>
+                          <Tooltip title="Cancel event">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              disabled={cancelGroupHikeMutation.isPending}
+                              onClick={() => cancelGroupHikeMutation.mutate({ id: gh.id })}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      ))}
+                      {myGroupHikes.rsvped.map((gh) => (
+                        <Box key={gh.id} sx={{ py: 1.25, display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+                          <EventIcon sx={{ fontSize: "1rem", color: "text.secondary", flexShrink: 0, mt: 0.25 }} />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography
+                              component={NextLink}
+                              href={`/mountains/${toSlug(gh.mountain.name)}`}
+                              variant="body2"
+                              fontWeight={600}
+                              sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                            >
+                              {gh.title}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {new Date(gh.hikeDate).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                              {" · "}{gh.mountain.name}
+                              {" · "}<Chip label={(gh as { myStatus: string }).myStatus} size="small" sx={{ height: 14, fontSize: "0.55rem", fontWeight: 700 }} />
+                            </Typography>
+                          </Box>
+                          <Tooltip title="Remove RSVP">
+                            <IconButton
+                              size="small"
+                              disabled={removeGroupHikeRsvpMutation.isPending}
+                              onClick={() => removeGroupHikeRsvpMutation.mutate({ groupHikeId: gh.id })}
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>

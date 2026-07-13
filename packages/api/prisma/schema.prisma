@@ -37,10 +37,16 @@ enum AchievementType {
 }
 
 enum NotificationType {
-  FOLLOW             // someone followed you
-  REVIEW_ON_SUMMIT   // someone reviewed a peak you've summited
-  COMMENT_ON_REPORT  // someone commented on your trip report
-  KUDO_RECEIVED      // someone kudoed your completion or trip report
+  FOLLOW              // someone followed you
+  REVIEW_ON_SUMMIT    // someone reviewed a peak you've summited
+  COMMENT_ON_REPORT   // someone commented on your trip report
+  KUDO_RECEIVED       // someone kudoed your completion or trip report
+  GROUP_HIKE_RSVP     // someone RSVPed to your group hike
+}
+
+enum RsvpStatus {
+  GOING
+  MAYBE
 }
 
 enum KudoTargetType {
@@ -109,6 +115,8 @@ model User {
   kudos              Kudo[]
   plannedHikes       PlannedHike[]
   conditionCheckIns  ConditionCheckIn[]
+  groupHikes         GroupHike[]         @relation("GroupHikeOrganizer")
+  groupHikeRsvps     GroupHikeRsvp[]
 }
 
 /// Per-user email notification opt-outs
@@ -194,6 +202,7 @@ model Mountain {
   listItems      MountainListItem[]
   plannedHikes      PlannedHike[]
   conditionCheckIns ConditionCheckIn[]
+  groupHikes        GroupHike[]
 }
 
 /// Admin-uploaded photos for a mountain; one is flagged isMain → synced to Mountain.imageUrl
@@ -423,6 +432,42 @@ model ConditionCheckIn {
   mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
 
   @@index([mountainId, checkedAt(sort: Desc)])
+  @@index([userId])
+}
+
+/// A public group hike event organized by a user for a specific mountain + date
+model GroupHike {
+  id           String   @id @default(cuid())
+  organizerId  String
+  mountainId   String
+  title        String   @db.VarChar(120)
+  description  String?  @db.VarChar(500)
+  hikeDate     DateTime
+  maxAttendees Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  organizer User          @relation("GroupHikeOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  mountain  Mountain      @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  rsvps     GroupHikeRsvp[]
+
+  @@index([mountainId, hikeDate])
+  @@index([organizerId])
+}
+
+/// RSVP for a group hike event
+model GroupHikeRsvp {
+  id          String     @id @default(cuid())
+  groupHikeId String
+  userId      String
+  status      RsvpStatus
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  groupHike GroupHike @relation(fields: [groupHikeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupHikeId, userId])
   @@index([userId])
 }
 

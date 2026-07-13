@@ -19,6 +19,7 @@ import Typography from "@mui/material/Typography";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import FavoriteIcon from "@mui/icons-material/Favorite";
+import GroupsIcon from "@mui/icons-material/Groups";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
@@ -28,13 +29,14 @@ import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
-type NotifType = "FOLLOW" | "REVIEW_ON_SUMMIT" | "COMMENT_ON_REPORT" | "KUDO_RECEIVED";
+type NotifType = "FOLLOW" | "REVIEW_ON_SUMMIT" | "COMMENT_ON_REPORT" | "KUDO_RECEIVED" | "GROUP_HIKE_RSVP";
 
 const TYPE_META: Record<NotifType, { icon: React.ReactNode; color: string; label: string }> = {
   FOLLOW:            { icon: <PersonAddIcon fontSize="small" />,         color: "#3b82f6", label: "Follow" },
   REVIEW_ON_SUMMIT:  { icon: <StarIcon fontSize="small" />,              color: "#f59e0b", label: "Review" },
   COMMENT_ON_REPORT: { icon: <ChatBubbleOutlineIcon fontSize="small" />, color: "#8b5cf6", label: "Comment" },
   KUDO_RECEIVED:     { icon: <FavoriteIcon fontSize="small" />,          color: "#ef4444", label: "Kudo" },
+  GROUP_HIKE_RSVP:   { icon: <GroupsIcon fontSize="small" />,            color: "#0ea5e9", label: "Group Hike" },
 };
 
 function typeLabel(type: NotifType, actorName: string, mountainName?: string | null): string {
@@ -43,11 +45,12 @@ function typeLabel(type: NotifType, actorName: string, mountainName?: string | n
     case "REVIEW_ON_SUMMIT":  return `${actorName} reviewed ${mountainName ?? "a peak"} you've summited`;
     case "COMMENT_ON_REPORT": return `${actorName} commented on your trip report${mountainName ? ` for ${mountainName}` : ""}`;
     case "KUDO_RECEIVED":     return `${actorName} kudoed your summit${mountainName ? ` of ${mountainName}` : ""}`;
+    case "GROUP_HIKE_RSVP":   return `${actorName} RSVPed to your group hike`;
   }
 }
 
 function notifHref(type: NotifType, actorId: string, mountainName?: string | null): string {
-  if (type === "FOLLOW" || type === "KUDO_RECEIVED") return `/users/${actorId}`;
+  if (type === "FOLLOW" || type === "KUDO_RECEIVED" || type === "GROUP_HIKE_RSVP") return `/users/${actorId}`;
   if (mountainName) {
     const slug = mountainName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     return `/mountains/${slug}`;

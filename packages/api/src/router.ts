@@ -16,6 +16,7 @@ import { listRouter } from "./list/list.router.js";
 import { kudoRouter } from "./kudo/kudo.router.js";
 import { plannedHikeRouter } from "./plannedHike/plannedHike.router.js";
 import { conditionsRouter } from "./conditions/conditions.router.js";
+import { groupHikeRouter } from "./groupHike/groupHike.router.js";
 
 export const appRouter = router({
   auth: authRouter,
@@ -35,6 +36,7 @@ export const appRouter = router({
   kudo: kudoRouter,
   plannedHike: plannedHikeRouter,
   conditions: conditionsRouter,
+  groupHike: groupHikeRouter,
 });
 
 export type AppRouter = typeof appRouter;
