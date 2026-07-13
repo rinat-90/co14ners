@@ -160,4 +160,58 @@ export const mountainRouter = router({
         .map((g) => ({ mountain: mountainMap.get(g.mountainId)!, count: g._count.userId }))
         .filter((r) => r.mountain);
     }),
+
+  /** Community photo gallery for a mountain — public summit photos + trip report photos */
+  summitPhotos: publicProcedure
+    .input(z.object({ mountainId: z.string(), limit: z.number().int().min(1).max(50).default(24) }))
+    .query(async ({ input }) => {
+      const [completionPhotos, reportPhotos] = await Promise.all([
+        prisma.completion.findMany({
+          where: { mountainId: input.mountainId, isPrivate: false, photoUrl: { not: null } },
+          orderBy: { completedAt: "desc" },
+          take: input.limit,
+          select: {
+            id: true,
+            photoUrl: true,
+            completedAt: true,
+            notes: true,
+            user: { select: { id: true, name: true, avatar: true, email: true } },
+          },
+        }),
+        prisma.tripReport.findMany({
+          where: { mountainId: input.mountainId, isPublic: true, photoUrl: { not: null } },
+          orderBy: { createdAt: "desc" },
+          take: input.limit,
+          select: {
+            id: true,
+            photoUrl: true,
+            createdAt: true,
+            title: true,
+            user: { select: { id: true, name: true, avatar: true, email: true } },
+          },
+        }),
+      ]);
+
+      const combined = [
+        ...completionPhotos.map((c) => ({
+          id: `completion-${c.id}`,
+          url: c.photoUrl!,
+          date: c.completedAt,
+          caption: c.notes ?? null,
+          source: "summit" as const,
+          user: c.user,
+        })),
+        ...reportPhotos.map((r) => ({
+          id: `report-${r.id}`,
+          url: r.photoUrl!,
+          date: r.createdAt,
+          caption: r.title,
+          source: "report" as const,
+          user: r.user,
+        })),
+      ];
+
+      combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return combined.slice(0, input.limit);
+    }),
 });

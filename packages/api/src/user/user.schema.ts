@@ -6,6 +6,7 @@ export const logSummitSchema = z.object({
   notes: z.string().max(2000).optional(),
   trailId: z.string().optional(),
   isPrivate: z.boolean().default(false),
+  photoUrl: z.string().url().optional(),
 });
 
 export const updateCompletionSchema = z.object({

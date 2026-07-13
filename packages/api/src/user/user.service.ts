@@ -88,7 +88,7 @@ export const userService = {
 
   async logSummit(
     userId: string,
-    data: { mountainId: string; completedAt: string; notes?: string; trailId?: string; isPrivate: boolean }
+    data: { mountainId: string; completedAt: string; notes?: string; trailId?: string; isPrivate: boolean; photoUrl?: string }
   ) {
     const completion = await prisma.completion.create({
       data: {
@@ -98,6 +98,7 @@ export const userService = {
         notes: data.notes,
         trailId: data.trailId,
         isPrivate: data.isPrivate,
+        photoUrl: data.photoUrl,
       },
     });
     const newAchievements = await userService.checkAndUnlockAchievements(userId);

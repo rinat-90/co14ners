@@ -57,6 +57,7 @@ export const feedRouter = router({
           reportId: null as string | null,
           completionId: c.id,
           conditions: null as string | null,
+          photoUrl: c.photoUrl ?? null,
         })),
         ...recentReviews.map((r) => ({
           id: `review-${r.id}`,
@@ -70,6 +71,7 @@ export const feedRouter = router({
           reportId: null as string | null,
           completionId: null as string | null,
           conditions: null as string | null,
+          photoUrl: null as string | null,
         })),
         ...recentReports.map((rp) => ({
           id: `report-${rp.id}`,
@@ -83,6 +85,7 @@ export const feedRouter = router({
           reportId: rp.id,
           completionId: null as string | null,
           conditions: rp.conditions,
+          photoUrl: rp.photoUrl ?? null,
         })),
       ]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -150,6 +153,7 @@ export const feedRouter = router({
           reportId: null as string | null,
           completionId: c.id,
           conditions: null as string | null,
+          photoUrl: c.photoUrl ?? null,
         })),
         ...recentReviews.map((r) => ({
           id: `review-${r.id}`,
@@ -163,6 +167,7 @@ export const feedRouter = router({
           reportId: null as string | null,
           completionId: null as string | null,
           conditions: null as string | null,
+          photoUrl: null as string | null,
         })),
         ...recentReports.map((rp) => ({
           id: `report-${rp.id}`,
@@ -176,6 +181,7 @@ export const feedRouter = router({
           reportId: rp.id,
           completionId: null as string | null,
           conditions: rp.conditions,
+          photoUrl: rp.photoUrl ?? null,
         })),
       ]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())

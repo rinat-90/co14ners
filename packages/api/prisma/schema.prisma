@@ -437,6 +437,8 @@ model Completion {
   isPrivate   Boolean   @default(false)
   completedAt DateTime
   notes       String?
+  /// Optional summit photo URL (uploaded via /upload/photo)
+  photoUrl    String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

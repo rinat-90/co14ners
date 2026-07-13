@@ -18,6 +18,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
@@ -27,12 +28,13 @@ import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
-type NotifType = "FOLLOW" | "REVIEW_ON_SUMMIT" | "COMMENT_ON_REPORT";
+type NotifType = "FOLLOW" | "REVIEW_ON_SUMMIT" | "COMMENT_ON_REPORT" | "KUDO_RECEIVED";
 
 const TYPE_META: Record<NotifType, { icon: React.ReactNode; color: string; label: string }> = {
   FOLLOW:            { icon: <PersonAddIcon fontSize="small" />,         color: "#3b82f6", label: "Follow" },
   REVIEW_ON_SUMMIT:  { icon: <StarIcon fontSize="small" />,              color: "#f59e0b", label: "Review" },
   COMMENT_ON_REPORT: { icon: <ChatBubbleOutlineIcon fontSize="small" />, color: "#8b5cf6", label: "Comment" },
+  KUDO_RECEIVED:     { icon: <FavoriteIcon fontSize="small" />,          color: "#ef4444", label: "Kudo" },
 };
 
 function typeLabel(type: NotifType, actorName: string, mountainName?: string | null): string {
@@ -40,11 +42,12 @@ function typeLabel(type: NotifType, actorName: string, mountainName?: string | n
     case "FOLLOW":            return `${actorName} started following you`;
     case "REVIEW_ON_SUMMIT":  return `${actorName} reviewed ${mountainName ?? "a peak"} you've summited`;
     case "COMMENT_ON_REPORT": return `${actorName} commented on your trip report${mountainName ? ` for ${mountainName}` : ""}`;
+    case "KUDO_RECEIVED":     return `${actorName} kudoed your summit${mountainName ? ` of ${mountainName}` : ""}`;
   }
 }
 
 function notifHref(type: NotifType, actorId: string, mountainName?: string | null): string {
-  if (type === "FOLLOW") return `/users/${actorId}`;
+  if (type === "FOLLOW" || type === "KUDO_RECEIVED") return `/users/${actorId}`;
   if (mountainName) {
     const slug = mountainName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     return `/mountains/${slug}`;
@@ -144,7 +147,7 @@ export default function NotificationsPage() {
             <NotificationsNoneIcon sx={{ fontSize: 56, color: "text.disabled", mb: 1.5 }} />
             <Typography variant="h6" color="text.secondary" fontWeight={500}>No notifications yet</Typography>
             <Typography variant="body2" color="text.disabled" mt={0.5}>
-              You&apos;ll see follows, comments, and reviews here
+              You&apos;ll see follows, kudos, comments, and reviews here
             </Typography>
           </Paper>
         ) : (

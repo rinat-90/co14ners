@@ -129,6 +129,7 @@ type FeedEvent = {
   reportId: string | null;
   completionId: string | null;
   conditions: string | null;
+  photoUrl: string | null;
 };
 
 type KudoCounts = Record<string, { count: number; kudoed: boolean }>;
@@ -262,6 +263,24 @@ function EventList({ events, isLoading, emptyMessage, emptyAction, kudoCounts = 
                 >
                   &ldquo;{event.reportTitle}&rdquo;
                 </Typography>
+              )}
+
+              {event.photoUrl && (
+                <Box
+                  component="img"
+                  src={event.photoUrl}
+                  alt="Summit photo"
+                  sx={{
+                    mt: 1,
+                    width: "100%",
+                    maxHeight: 220,
+                    objectFit: "cover",
+                    borderRadius: 2,
+                    display: "block",
+                    cursor: "zoom-in",
+                  }}
+                  onClick={() => window.open(event.photoUrl!, "_blank")}
+                />
               )}
             </Box>
 

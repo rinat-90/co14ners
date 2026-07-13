@@ -139,6 +139,11 @@ function LogSummitDialog({
   const [rating, setRating] = useState<number | null>(null);
   const [reviewTitle, setReviewTitle] = useState("");
   const [reviewBody, setReviewBody] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const reset = () => {
     setDate(today);
@@ -146,6 +151,9 @@ function LogSummitDialog({
     setRating(null);
     setReviewTitle("");
     setReviewBody("");
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setUploadError(null);
   };
 
   const invalidate = (newAchievements: string[] = []) => {
@@ -154,6 +162,7 @@ function LogSummitDialog({
     utils.user.myCompletion.invalidate({ mountainId });
     utils.mountain.getBySlug.invalidate({ slug: mountainSlug });
     utils.mountain.globalStats.invalidate();
+    utils.mountain.summitPhotos.invalidate({ mountainId });
     utils.review.list.invalidate({ mountainId });
     utils.review.myReview.invalidate({ mountainId });
     utils.user.achievements.invalidate();
@@ -169,16 +178,47 @@ function LogSummitDialog({
     onSuccess: (data) => invalidate(data.newAchievements),
   });
 
-  const isPending = logMutation.isPending || reviewMutation.isPending || logOnlyMutation.isPending;
+  const isPending = logMutation.isPending || reviewMutation.isPending || logOnlyMutation.isPending || uploading;
   const canSubmit = !!date && (hasExistingReview || (!!rating && reviewBody.trim().length > 0));
 
-  const handleSubmit = () => {
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+    setUploadError(null);
+  };
+
+  const handleSubmit = async () => {
+    let photoUrl: string | undefined;
+
+    if (photoFile) {
+      setUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("photo", photoFile);
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/upload/photo`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!res.ok) throw new Error("Upload failed");
+        const data = await res.json();
+        photoUrl = data.url;
+      } catch {
+        setUploadError("Photo upload failed. You can still log without a photo.");
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
     if (hasExistingReview) {
       logOnlyMutation.mutate({
         mountainId,
         completedAt: new Date(date).toISOString(),
         trailId: trailId || undefined,
         isPrivate: false,
+        photoUrl,
       });
     } else {
       logMutation.mutate(
@@ -187,6 +227,7 @@ function LogSummitDialog({
           completedAt: new Date(date).toISOString(),
           trailId: trailId || undefined,
           isPrivate: false,
+          photoUrl,
         },
         {
           onSuccess: (data) => {
@@ -277,12 +318,52 @@ function LogSummitDialog({
               You&apos;ve already reviewed this peak. This will log another summit entry.
             </Typography>
           )}
+
+          {/* Summit photo upload */}
+          <Divider>
+            <Typography variant="caption" color="text.secondary">Summit Photo (optional)</Typography>
+          </Divider>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={handlePhotoChange}
+          />
+          {photoPreview ? (
+            <Box sx={{ position: "relative" }}>
+              <Box
+                component="img"
+                src={photoPreview}
+                alt="Summit preview"
+                sx={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 2 }}
+              />
+              <IconButton
+                size="small"
+                onClick={() => { setPhotoFile(null); setPhotoPreview(null); }}
+                sx={{ position: "absolute", top: 6, right: 6, bgcolor: "rgba(0,0,0,0.55)", color: "white", "&:hover": { bgcolor: "rgba(0,0,0,0.8)" } }}
+              >
+                <CancelIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          ) : (
+            <Button
+              variant="outlined"
+              startIcon={<CameraAltIcon />}
+              onClick={() => photoInputRef.current?.click()}
+              sx={{ borderStyle: "dashed", py: 1.5 }}
+              fullWidth
+            >
+              Add summit photo
+            </Button>
+          )}
+          {uploadError && <Alert severity="error" sx={{ borderRadius: 2 }}>{uploadError}</Alert>}
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="contained" disabled={!canSubmit || isPending} onClick={handleSubmit}>
-          {isPending ? "Saving…" : "Log Summit"}
+          {isPending ? (uploading ? "Uploading photo…" : "Saving…") : "Log Summit"}
         </Button>
       </DialogActions>
     </Dialog>
@@ -1356,6 +1437,110 @@ function TripReportsSection({
   );
 }
 
+// ── Community Photos section ───────────────────────────────────────────────────
+
+function CommunityPhotosSection({ mountainId }: { mountainId: string }) {
+  const { data: photos, isLoading } = trpc.mountain.summitPhotos.useQuery({ mountainId });
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  if (isLoading) {
+    return (
+      <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mt: 3 }}>
+        <Typography variant="h6" fontWeight={600} gutterBottom sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>
+          Community Photos
+        </Typography>
+        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} variant="rounded" sx={{ aspectRatio: "1", borderRadius: 2 }} />
+          ))}
+        </Box>
+      </Paper>
+    );
+  }
+
+  if (!photos?.length) return null;
+
+  const galleryItems = photos.map((p) => ({
+    url: p.url,
+    caption: p.caption ?? undefined,
+    credit: p.user.name ?? p.user.email.split("@")[0],
+  }));
+
+  return (
+    <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, mt: 3 }}>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+        <Stack direction="row" spacing={1} alignItems="center">
+          <CameraAltIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
+          <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.25rem" } }}>
+            Community Photos
+          </Typography>
+          <Chip label={photos.length} size="small" sx={{ height: 18, fontSize: "0.7rem" }} />
+        </Stack>
+      </Stack>
+
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "repeat(3, 1fr)", sm: "repeat(4, 1fr)" },
+          gap: 1,
+        }}
+      >
+        {photos.map((photo, idx) => (
+          <Box
+            key={photo.id}
+            onClick={() => setLightboxIndex(idx)}
+            sx={{
+              aspectRatio: "1",
+              borderRadius: 2,
+              overflow: "hidden",
+              cursor: "zoom-in",
+              position: "relative",
+              bgcolor: "action.hover",
+              "&:hover .photo-overlay": { opacity: 1 },
+            }}
+          >
+            <Box
+              component="img"
+              src={photo.url}
+              alt={photo.caption ?? "Summit photo"}
+              sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+            <Box
+              className="photo-overlay"
+              sx={{
+                position: "absolute",
+                inset: 0,
+                bgcolor: "rgba(0,0,0,0.4)",
+                opacity: 0,
+                transition: "opacity 0.15s",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "flex-end",
+                p: 0.75,
+              }}
+            >
+              <Typography variant="caption" sx={{ color: "white", fontWeight: 600, lineHeight: 1.2, fontSize: "0.6rem" }} noWrap>
+                {photo.user.name ?? photo.user.email.split("@")[0]}
+              </Typography>
+              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)", fontSize: "0.55rem" }}>
+                {photo.source === "summit" ? "Summit" : "Trip Report"}
+              </Typography>
+            </Box>
+          </Box>
+        ))}
+      </Box>
+
+      <PhotoGallery
+        photos={galleryItems}
+        open={lightboxIndex !== null}
+        index={lightboxIndex ?? 0}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
+      />
+    </Paper>
+  );
+}
+
 // ── Private note ───────────────────────────────────────────────────────────────
 
 function PrivateNoteSection({
@@ -2379,6 +2564,9 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
 
             {/* Reviews */}
             <ReviewsSection mountainId={id} mountainSlug={slug} accessToken={accessToken} />
+
+            {/* Community Photos */}
+            <CommunityPhotosSection mountainId={id} />
 
             {/* Trip Reports */}
             <TripReportsSection

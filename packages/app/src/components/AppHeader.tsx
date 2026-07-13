@@ -26,6 +26,7 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import LogoutIcon from "@mui/icons-material/Logout";
 import MapIcon from "@mui/icons-material/Map";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import FavoriteIcon from "@mui/icons-material/Favorite";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import PersonIcon from "@mui/icons-material/Person";
@@ -116,7 +117,7 @@ function NotificationBell() {
             <MenuItem
               key={n.id}
               component={NextLink}
-              href={n.type === "FOLLOW"
+              href={n.type === "FOLLOW" || n.type === "KUDO_RECEIVED"
                 ? `/users/${n.actorId}`
                 : `/mountains/${n.mountain?.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`}
               onClick={() => setAnchor(null)}
@@ -129,8 +130,10 @@ function NotificationBell() {
                 <Typography variant="body2" sx={{ lineHeight: 1.4 }}>
                   {n.type === "FOLLOW" ? (
                     <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> started following you</>
+                  ) : n.type === "KUDO_RECEIVED" ? (
+                    <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> kudoed your summit{n.mountain ? <> on <strong>{n.mountain.name}</strong></> : ""}</>
                   ) : n.type === "COMMENT_ON_REPORT" ? (
-                    <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> commented on your report for <strong>{n.mountain?.name}</strong></>
+                    <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> commented on your report{n.mountain ? <> for <strong>{n.mountain.name}</strong></> : ""}</>
                   ) : (
                     <><strong>{n.actor.name ?? n.actor.email.split("@")[0]}</strong> reviewed <strong>{n.mountain?.name}</strong></>
                   )}
@@ -138,6 +141,7 @@ function NotificationBell() {
                 <Typography variant="caption" color="text.secondary">{timeAgo(n.createdAt)}</Typography>
               </Box>
               {n.type === "FOLLOW" && <PersonAddIcon fontSize="small" sx={{ color: "primary.main", mt: 0.5, flexShrink: 0 }} />}
+              {n.type === "KUDO_RECEIVED" && <FavoriteIcon fontSize="small" sx={{ color: "error.main", mt: 0.5, flexShrink: 0 }} />}
               {n.type === "REVIEW_ON_SUMMIT" && <TerrainIcon fontSize="small" sx={{ color: "secondary.main", mt: 0.5, flexShrink: 0 }} />}
               {n.type === "COMMENT_ON_REPORT" && <ChatBubbleOutlineIcon fontSize="small" sx={{ color: "info.main", mt: 0.5, flexShrink: 0 }} />}
             </MenuItem>
