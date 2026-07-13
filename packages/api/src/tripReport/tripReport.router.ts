@@ -163,4 +163,46 @@ export const tripReportRouter = router({
         },
       });
     }),
+
+  /** Discovery feed with optional filters — powers the /reports page */
+  explore: publicProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(50).default(24),
+      cursor: z.string().optional(),
+      range: z.enum(["SAWATCH", "ELK", "SAN_JUAN", "TENMILE_MOSQUITO", "FRONT", "SANGRE_DE_CRISTO", "OTHER"]).optional(),
+      conditions: z.enum(["EXCELLENT", "GOOD", "FAIR", "POOR"]).optional(),
+      difficulty: z.enum(["CLASS_1", "CLASS_2", "CLASS_3", "CLASS_4", "CLASS_5"]).optional(),
+      photoOnly: z.boolean().default(false),
+    }))
+    .query(async ({ input }) => {
+      const { limit, cursor, range, conditions, difficulty, photoOnly } = input;
+
+      const reports = await prisma.tripReport.findMany({
+        where: {
+          isPublic: true,
+          ...(conditions && { conditions }),
+          ...(photoOnly && { photoUrl: { not: null } }),
+          ...(range || difficulty) && {
+            mountain: {
+              ...(range && { range }),
+              ...(difficulty && { difficulty }),
+            },
+          },
+          ...(cursor && { createdAt: { lt: new Date(cursor) } }),
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit + 1,
+        include: {
+          user: { select: userSelect },
+          mountain: { select: { id: true, name: true, altitude: true, difficulty: true, range: true } },
+          trail: { select: trailSelect },
+        },
+      });
+
+      const hasMore = reports.length > limit;
+      const items = hasMore ? reports.slice(0, limit) : reports;
+      const nextCursor = hasMore ? items[items.length - 1].createdAt.toISOString() : null;
+
+      return { items, nextCursor };
+    }),
 });

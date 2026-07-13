@@ -16,6 +16,7 @@ import Toolbar from "@mui/material/Toolbar";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import ArticleIcon from "@mui/icons-material/Article";
 import CloseIcon from "@mui/icons-material/Close";
 import DynamicFeedIcon from "@mui/icons-material/DynamicFeed";
 import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
@@ -263,6 +264,9 @@ export default function AppHeader() {
             </Button>
             <Button component={NextLink} href="/feed" color="inherit" startIcon={<DynamicFeedIcon />} sx={{ fontWeight: 600 }}>
               Feed
+            </Button>
+            <Button component={NextLink} href="/reports" color="inherit" startIcon={<ArticleIcon />} sx={{ fontWeight: 600 }}>
+              Reports
             </Button>
             <Button component={NextLink} href="/leaderboard" color="inherit" startIcon={<EmojiEventsIcon />} sx={{ fontWeight: 600 }}>
               Leaderboard
