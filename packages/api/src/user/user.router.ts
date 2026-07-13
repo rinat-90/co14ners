@@ -519,6 +519,23 @@ export const userRouter = router({
       .sort((a, b) => b.pct - a.pct);
   }),
 
+  activityHeatmap: protectedProcedure.query(async ({ ctx }) => {
+    const since = new Date();
+    since.setFullYear(since.getFullYear() - 1);
+
+    const completions = await prisma.completion.findMany({
+      where: { userId: ctx.user.id, completedAt: { gte: since } },
+      select: { completedAt: true },
+    });
+
+    const countByDay: Record<string, number> = {};
+    for (const c of completions) {
+      const key = new Date(c.completedAt).toISOString().slice(0, 10);
+      countByDay[key] = (countByDay[key] ?? 0) + 1;
+    }
+    return countByDay; // { "2025-06-15": 2, ... }
+  }),
+
   leaderboard: publicProcedure
     .input(z.object({ metric: z.enum(["summits", "elevation", "unique"]).default("summits"), limit: z.number().int().min(1).max(100).default(25) }))
     .query(async ({ input }) => {

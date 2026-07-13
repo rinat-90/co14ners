@@ -51,6 +51,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
 } from "recharts";
+import ActivityHeatmap from "@/components/ActivityHeatmap";
 import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
 import RangeLabel from "@/components/mountains/RangeLabel";
@@ -312,7 +313,7 @@ function fmtMonth(ym: string) {
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-function StatsTab({ completions, personalBests, rangeProgress }: { completions: Completion[]; personalBests: PersonalBests; rangeProgress: RangeProgress | null | undefined }) {
+function StatsTab({ completions, personalBests, rangeProgress, activityHeatmap }: { completions: Completion[]; personalBests: PersonalBests; rangeProgress: RangeProgress | null | undefined; activityHeatmap: Record<string, number> }) {
   // Peaks by difficulty
   const byDiff = ["CLASS_1", "CLASS_2", "CLASS_3", "CLASS_4", "CLASS_5"].map((d, i) => ({
     name: DIFF_LABELS[d],
@@ -363,6 +364,11 @@ function StatsTab({ completions, personalBests, rangeProgress }: { completions: 
 
   return (
     <Stack spacing={3}>
+      {/* Activity Heatmap */}
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+        <ActivityHeatmap countByDay={activityHeatmap} totalSummits={completions.length} />
+      </Paper>
+
       {/* Personal Records */}
       {personalBests && (
         <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
@@ -579,6 +585,7 @@ export default function ProfilePage() {
   const { data: streak } = trpc.user.streak.useQuery(undefined, { enabled: !!accessToken });
   const { data: personalBests } = trpc.user.personalBests.useQuery(undefined, { enabled: !!accessToken });
   const { data: rangeProgress } = trpc.user.rangeProgress.useQuery(undefined, { enabled: !!accessToken });
+  const { data: activityHeatmap } = trpc.user.activityHeatmap.useQuery(undefined, { enabled: !!accessToken });
   const { data: myPlans } = trpc.plannedHike.myPlans.useQuery(undefined, { enabled: !!accessToken });
   const { data: myGroupHikes } = trpc.groupHike.mine.useQuery(undefined, { enabled: !!accessToken });
 
@@ -1004,7 +1011,7 @@ export default function ProfilePage() {
 
             {/* ── Tab 2: Stats ── */}
             {tab === 2 && (
-              <StatsTab completions={completions ?? []} personalBests={personalBests ?? null} rangeProgress={rangeProgress} />
+              <StatsTab completions={completions ?? []} personalBests={personalBests ?? null} rangeProgress={rangeProgress} activityHeatmap={activityHeatmap ?? {}} />
             )}
 
             {/* ── Tab 3: Achievements ── */}

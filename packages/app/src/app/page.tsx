@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import NextLink from "next/link";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
@@ -25,6 +26,9 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import WbSunnyIcon from "@mui/icons-material/WbSunny";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import MyLocationIcon from "@mui/icons-material/MyLocation";
+import LocationOffIcon from "@mui/icons-material/LocationOff";
+import NearMeIcon from "@mui/icons-material/NearMe";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import AppHeader from "@/components/AppHeader";
@@ -500,6 +504,192 @@ function RecommendationsSection() {
   );
 }
 
+// ── Nearby Peaks Widget ───────────────────────────────────────────────────────
+
+type GeoState = "idle" | "loading" | "denied" | "ready";
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function NearbyPeaksWidget() {
+  const [geoState, setGeoState] = useState<GeoState>("idle");
+  const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
+
+  const { data: mountains } = trpc.mountain.list.useQuery(
+    {},
+    { enabled: geoState === "ready" || geoState === "loading" }
+  );
+
+  // Restore cached position from sessionStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const cached = sessionStorage.getItem("nearby_pos");
+    if (cached) {
+      try {
+        const pos = JSON.parse(cached) as { lat: number; lng: number };
+        setUserPos(pos);
+        setGeoState("ready");
+      } catch { /* ignore */ }
+    }
+  }, []);
+
+  function requestLocation() {
+    if (!navigator.geolocation) { setGeoState("denied"); return; }
+    setGeoState("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setUserPos(p);
+        setGeoState("ready");
+        sessionStorage.setItem("nearby_pos", JSON.stringify(p));
+      },
+      () => setGeoState("denied"),
+      { enableHighAccuracy: false, timeout: 10000 }
+    );
+  }
+
+  const nearest = userPos && mountains
+    ? [...mountains]
+        .map((m) => ({
+          ...m,
+          distKm: haversineKm(userPos.lat, userPos.lng, m.latitude, m.longitude),
+          distMi: haversineKm(userPos.lat, userPos.lng, m.latitude, m.longitude) * 0.621371,
+        }))
+        .sort((a, b) => a.distKm - b.distKm)
+        .slice(0, 5)
+    : null;
+
+  if (geoState === "idle") {
+    return (
+      <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5} mb={1.5}>
+          <NearMeIcon color="primary" sx={{ fontSize: 22 }} />
+          <Typography variant="h6" fontWeight={700} sx={{ flex: 1 }}>Peaks Near You</Typography>
+        </Stack>
+        <Typography variant="body2" color="text.secondary" mb={2}>
+          See which Colorado 14ers are closest to your current location.
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<MyLocationIcon />}
+          onClick={requestLocation}
+          sx={{ borderRadius: 2 }}
+        >
+          Find nearby peaks
+        </Button>
+      </Paper>
+    );
+  }
+
+  if (geoState === "loading") {
+    return (
+      <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5} mb={2}>
+          <NearMeIcon color="primary" sx={{ fontSize: 22 }} />
+          <Typography variant="h6" fontWeight={700}>Peaks Near You</Typography>
+        </Stack>
+        <Stack spacing={1.5}>
+          {[1, 2, 3].map((i) => <Skeleton key={i} variant="rounded" height={52} sx={{ borderRadius: 2 }} />)}
+        </Stack>
+      </Paper>
+    );
+  }
+
+  if (geoState === "denied") {
+    return (
+      <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+        <Stack direction="row" alignItems="center" spacing={1.5}>
+          <LocationOffIcon sx={{ fontSize: 22, color: "text.disabled" }} />
+          <Box>
+            <Typography variant="subtitle2" fontWeight={600}>Location access denied</Typography>
+            <Typography variant="caption" color="text.secondary">Enable location in your browser to see nearby peaks.</Typography>
+          </Box>
+        </Stack>
+      </Paper>
+    );
+  }
+
+  // ready
+  return (
+    <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+      <Stack direction="row" alignItems="center" spacing={1.5} mb={2}>
+        <NearMeIcon color="primary" sx={{ fontSize: 22 }} />
+        <Typography variant="h6" fontWeight={700} sx={{ flex: 1 }}>Peaks Near You</Typography>
+        <Tooltip title="Refresh location">
+          <Button size="small" startIcon={<MyLocationIcon />} onClick={requestLocation} sx={{ borderRadius: 2 }}>
+            Update
+          </Button>
+        </Tooltip>
+      </Stack>
+
+      {!nearest ? (
+        <Stack spacing={1.5}>
+          {[1, 2, 3].map((i) => <Skeleton key={i} variant="rounded" height={52} sx={{ borderRadius: 2 }} />)}
+        </Stack>
+      ) : (
+        <Stack spacing={1}>
+          {nearest.map((m, i) => (
+            <Paper
+              key={m.id}
+              component={NextLink}
+              href={`/mountains/${m.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`}
+              variant="outlined"
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                textDecoration: "none",
+                color: "inherit",
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                transition: "box-shadow 0.15s",
+                "&:hover": { boxShadow: 3 },
+              }}
+            >
+              <Box
+                sx={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  bgcolor: i === 0 ? "primary.main" : "action.selected",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Typography variant="caption" fontWeight={700} color={i === 0 ? "white" : "text.secondary"}>
+                  {i + 1}
+                </Typography>
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="subtitle2" fontWeight={700} noWrap>{m.name}</Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="caption" color="text.secondary">{m.altitude.toLocaleString()} ft</Typography>
+                  <DifficultyChip difficulty={m.difficulty as "CLASS_1" | "CLASS_2" | "CLASS_3" | "CLASS_4" | "CLASS_5"} size="small" />
+                </Stack>
+              </Box>
+              <Chip
+                label={m.distMi < 10 ? `${m.distMi.toFixed(1)} mi` : `${Math.round(m.distMi)} mi`}
+                size="small"
+                color={m.distMi < 30 ? "success" : m.distMi < 80 ? "primary" : "default"}
+                sx={{ fontWeight: 700, flexShrink: 0 }}
+              />
+            </Paper>
+          ))}
+        </Stack>
+      )}
+    </Paper>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
@@ -535,6 +725,7 @@ export default function HomePage() {
           <Stack spacing={3}>
             <QuickLinks />
             <OnThisDayWidget />
+            <NearbyPeaksWidget />
             <ProgressSection />
             <RangeTrackerWidget />
             <MiniFollowingFeed />
