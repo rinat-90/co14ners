@@ -47,6 +47,7 @@ import GroupsIcon from "@mui/icons-material/Groups";
 import EventIcon from "@mui/icons-material/Event";
 import StarIcon from "@mui/icons-material/Star";
 import WhatshotIcon from "@mui/icons-material/Whatshot";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
@@ -71,6 +72,37 @@ function initials(name: string | null, email: string) {
 
 function fmtDate(d: Date | string) {
   return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function exportSummitsCSV(completions: any[]) {
+  const DIFF: Record<string, string> = {
+    CLASS_1: "Class 1", CLASS_2: "Class 2", CLASS_3: "Class 3", CLASS_4: "Class 4", CLASS_5: "Class 5",
+  };
+  const RANGE: Record<string, string> = {
+    SAWATCH: "Sawatch", ELK: "Elk Mountains", SAN_JUAN: "San Juan", TENMILE_MOSQUITO: "Tenmile/Mosquito",
+    FRONT: "Front Range", SANGRE_DE_CRISTO: "Sangre de Cristo", OTHER: "Other",
+  };
+  const headers = ["Mountain", "Date", "Altitude (ft)", "Difficulty", "Range", "Trail", "Notes"];
+  const rows = completions.map((c) => [
+    c.mountain?.name ?? "",
+    new Date(c.completedAt).toISOString().slice(0, 10),
+    c.mountain?.altitude ?? "",
+    DIFF[c.mountain?.difficulty] ?? c.mountain?.difficulty ?? "",
+    RANGE[c.mountain?.range] ?? c.mountain?.range ?? "",
+    c.trail?.name ?? "",
+    (c.notes ?? "").replace(/"/g, '""'),
+  ]);
+  const csv = [headers, ...rows]
+    .map((row) => row.map((v) => (String(v).includes(",") || String(v).includes('"') || String(v).includes("\n") ? `"${v}"` : v)).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `co14ners-summits-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Stat card ──────────────────────────────────────────────────────────────────
@@ -950,6 +982,21 @@ export default function ProfilePage() {
                     </Button>
                   </Box>
                 ) : (
+                  <>
+                    {/* Export button */}
+                    <Stack direction="row" justifyContent="flex-end" mb={1.5}>
+                      <Tooltip title="Download your summit log as CSV">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<FileDownloadIcon />}
+                          onClick={() => exportSummitsCSV(completions ?? [])}
+                          sx={{ borderRadius: 2 }}
+                        >
+                          Export CSV
+                        </Button>
+                      </Tooltip>
+                    </Stack>
                   <Stack divider={<Divider />} spacing={0}>
                     {completions?.map((c) => (
                       <Box key={c.id} sx={{ py: 2.5, display: "flex", gap: 2, alignItems: "flex-start" }}>
@@ -1005,6 +1052,7 @@ export default function ProfilePage() {
                       </Box>
                     ))}
                   </Stack>
+                  </>
                 )}
               </>
             )}
