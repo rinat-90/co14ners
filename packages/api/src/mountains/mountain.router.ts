@@ -214,4 +214,41 @@ export const mountainRouter = router({
       combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       return combined.slice(0, input.limit);
     }),
+
+  /** Aggregate public trip report conditions by calendar month (1–12) for a mountain */
+  conditionsByMonth: publicProcedure
+    .input(z.object({ mountainId: z.string() }))
+    .query(async ({ input }) => {
+      const reports = await prisma.tripReport.findMany({
+        where: { mountainId: input.mountainId, isPublic: true, conditions: { not: null } },
+        select: { createdAt: true, conditions: true },
+      });
+
+      // month 1–12, score: EXCELLENT=3, GOOD=2, FAIR=1, POOR=0
+      const SCORE: Record<string, number> = { EXCELLENT: 3, GOOD: 2, FAIR: 1, POOR: 0 };
+
+      const byMonth: Record<number, { total: number; scoreSum: number; counts: Record<string, number> }> = {};
+      for (let m = 1; m <= 12; m++) {
+        byMonth[m] = { total: 0, scoreSum: 0, counts: { EXCELLENT: 0, GOOD: 0, FAIR: 0, POOR: 0 } };
+      }
+
+      for (const r of reports) {
+        const month = new Date(r.createdAt).getMonth() + 1; // 1-12
+        const cond = r.conditions!;
+        byMonth[month].total += 1;
+        byMonth[month].scoreSum += SCORE[cond] ?? 0;
+        byMonth[month].counts[cond] = (byMonth[month].counts[cond] ?? 0) + 1;
+      }
+
+      return Array.from({ length: 12 }, (_, i) => {
+        const m = i + 1;
+        const { total, scoreSum, counts } = byMonth[m];
+        return {
+          month: m,
+          total,
+          avgScore: total > 0 ? scoreSum / total : null, // null = no data
+          counts,
+        };
+      });
+    }),
 });

@@ -2145,6 +2145,10 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
     { mountainId: id },
     { enabled: !!id }
   );
+  const { data: condByMonth } = trpc.mountain.conditionsByMonth.useQuery(
+    { mountainId: id },
+    { enabled: !!id }
+  );
   const { data: plannedHikers } = trpc.plannedHike.forMountain.useQuery(
     { mountainId: id },
     { enabled: !!id }
@@ -3056,6 +3060,84 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                 </Stack>
               </Paper>
             )}
+
+            {/* Best Time to Climb */}
+            {condByMonth && condByMonth.some((m) => m.total > 0) && (() => {
+              const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+              const maxTotal = Math.max(...condByMonth.map((m) => m.total), 1);
+              function cellBg(m: { total: number; avgScore: number | null }) {
+                if (m.total === 0) return "action.hover";
+                if (m.avgScore === null) return "action.hover";
+                if (m.avgScore >= 2.5) return "success.light";
+                if (m.avgScore >= 1.5) return "warning.light";
+                return "error.light";
+              }
+              return (
+                <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
+                  <Typography variant="subtitle2" fontWeight={700} mb={0.5}>Best Time to Climb</Typography>
+                  <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+                    Based on {condByMonth.reduce((s, m) => s + m.total, 0)} trip reports
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(6, 1fr)",
+                      gap: 0.5,
+                    }}
+                  >
+                    {condByMonth.map((m) => (
+                      <Tooltip
+                        key={m.month}
+                        title={
+                          m.total === 0
+                            ? `${MONTHS[m.month - 1]}: no reports`
+                            : `${MONTHS[m.month - 1]}: ${m.total} report${m.total !== 1 ? "s" : ""} · ${
+                                m.avgScore !== null && m.avgScore >= 2.5 ? "Good" :
+                                m.avgScore !== null && m.avgScore >= 1.5 ? "Mixed" : "Poor"
+                              } conditions`
+                        }
+                        placement="top"
+                        arrow
+                      >
+                        <Box
+                          sx={{
+                            bgcolor: cellBg(m),
+                            borderRadius: 1,
+                            py: 0.75,
+                            textAlign: "center",
+                            cursor: "default",
+                            opacity: m.total === 0 ? 0.5 : 0.6 + 0.4 * (m.total / maxTotal),
+                            transition: "opacity 0.15s",
+                            "&:hover": { opacity: 1 },
+                          }}
+                        >
+                          <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.6rem", display: "block", lineHeight: 1 }}>
+                            {MONTHS[m.month - 1].slice(0, 1)}
+                          </Typography>
+                          {m.total > 0 && (
+                            <Typography variant="caption" sx={{ fontSize: "0.55rem", color: "text.secondary", lineHeight: 1 }}>
+                              {m.total}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Tooltip>
+                    ))}
+                  </Box>
+                  <Stack direction="row" spacing={1.5} mt={1.5}>
+                    {[
+                      { color: "success.light", label: "Good" },
+                      { color: "warning.light", label: "Mixed" },
+                      { color: "error.light", label: "Poor" },
+                    ].map(({ color, label }) => (
+                      <Stack key={label} direction="row" spacing={0.5} alignItems="center">
+                        <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: color, flexShrink: 0 }} />
+                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.65rem" }}>{label}</Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </Paper>
+              );
+            })()}
 
             {/* Nearby Peaks */}
             {nearbyPeaks && nearbyPeaks.length > 0 && (
