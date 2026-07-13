@@ -29,6 +29,7 @@ import Select from "@mui/material/Select";
 import Switch from "@mui/material/Switch";
 import Tooltip from "@mui/material/Tooltip";
 import CircularProgress from "@mui/material/CircularProgress";
+import LinearProgress from "@mui/material/LinearProgress";
 import ArticleIcon from "@mui/icons-material/Article";
 import AddAPhotoIcon from "@mui/icons-material/AddAPhoto";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -275,10 +276,6 @@ function EditReportDialog({ open, onClose, report }: { open: boolean; onClose: (
 
 // ── Stats tab ──────────────────────────────────────────────────────────────────
 
-const RANGE_LABELS: Record<string, string> = {
-  SAWATCH: "Sawatch", ELK: "Elk", SAN_JUAN: "San Juan",
-  TENMILE_MOSQUITO: "Tenmile", FRONT: "Front", SANGRE_DE_CRISTO: "Sangre", OTHER: "Other",
-};
 const DIFF_LABELS: Record<string, string> = {
   CLASS_1: "C1", CLASS_2: "C2", CLASS_3: "C3", CLASS_4: "C4", CLASS_5: "C5",
 };
@@ -299,23 +296,21 @@ type PersonalBests = {
   bestElevMonth: { month: string; elevation: number } | null;
 } | null;
 
+type RangeProgress = {
+  range: string;
+  label: string;
+  total: number;
+  completed: number;
+  isComplete: boolean;
+  pct: number;
+}[];
+
 function fmtMonth(ym: string) {
   const [y, m] = ym.split("-");
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-function StatsTab({ completions, personalBests }: { completions: Completion[]; personalBests: PersonalBests }) {
-  // Peaks by range
-  const byRange = Object.entries(
-    completions.reduce((acc, c) => {
-      const key = c.mountain.range;
-      acc[key] = (acc[key] ?? 0) + 1;
-      return acc;
-    }, {} as Record<string, number>)
-  )
-    .map(([range, count]) => ({ range: RANGE_LABELS[range] ?? range, count }))
-    .sort((a, b) => b.count - a.count);
-
+function StatsTab({ completions, personalBests, rangeProgress }: { completions: Completion[]; personalBests: PersonalBests; rangeProgress: RangeProgress | null | undefined }) {
   // Peaks by difficulty
   const byDiff = ["CLASS_1", "CLASS_2", "CLASS_3", "CLASS_4", "CLASS_5"].map((d, i) => ({
     name: DIFF_LABELS[d],
@@ -468,45 +463,76 @@ function StatsTab({ completions, personalBests }: { completions: Completion[]; p
         </Paper>
       )}
 
-      {/* Range + Difficulty side by side */}
-      <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-        <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, flex: 1 }}>
-          <Typography variant="subtitle2" fontWeight={700} mb={2}>Peaks by Range</Typography>
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={byRange} layout="vertical" margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
-              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="range" tick={{ fontSize: 11 }} width={60} />
-              <ChartTooltip formatter={(v) => [`${v} peak${Number(v) !== 1 ? "s" : ""}`, ""]} />
-              <Bar dataKey="count" fill="#15803d" radius={[0, 4, 4, 0]} />
-            </BarChart>
+      {/* Range Completion */}
+      {rangeProgress && rangeProgress.length > 0 && (
+        <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+          <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+            <MapIcon sx={{ color: "success.main", fontSize: 20 }} />
+            <Typography variant="subtitle2" fontWeight={700}>Range Completion</Typography>
+            <Chip
+              label={`${rangeProgress.filter((r) => r.isComplete).length}/${rangeProgress.length} complete`}
+              size="small"
+              sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700, bgcolor: "success.50", color: "success.dark" }}
+            />
+          </Stack>
+          <Stack spacing={1.5}>
+            {rangeProgress.map((r) => (
+              <Box key={r.range}>
+                <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.4}>
+                  <Stack direction="row" spacing={0.75} alignItems="center">
+                    <Typography variant="body2" fontWeight={600} sx={{ fontSize: "0.8rem" }}>{r.label}</Typography>
+                    {r.isComplete && (
+                      <Chip label="Complete" size="small" sx={{ height: 16, fontSize: "0.6rem", fontWeight: 700, bgcolor: "success.main", color: "white" }} />
+                    )}
+                  </Stack>
+                  <Typography variant="caption" color={r.isComplete ? "success.main" : "text.secondary"} fontWeight={r.isComplete ? 700 : 400}>
+                    {r.completed}/{r.total}
+                  </Typography>
+                </Stack>
+                <LinearProgress
+                  variant="determinate"
+                  value={r.pct}
+                  sx={{
+                    height: 8,
+                    borderRadius: 4,
+                    bgcolor: "action.hover",
+                    "& .MuiLinearProgress-bar": {
+                      bgcolor: r.isComplete ? "success.main" : "primary.main",
+                      borderRadius: 4,
+                    },
+                  }}
+                />
+              </Box>
+            ))}
+          </Stack>
+        </Paper>
+      )}
+
+      {/* Difficulty breakdown */}
+      {byDiff.length > 0 && (
+        <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+          <Typography variant="subtitle2" fontWeight={700} mb={2}>Difficulty Breakdown</Typography>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie
+                data={byDiff}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                label={({ name, value }) => `${name}: ${value}`}
+                labelLine={false}
+              >
+                {byDiff.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
+                ))}
+              </Pie>
+              <ChartTooltip formatter={(v, name) => [`${v} peaks`, name]} />
+            </PieChart>
           </ResponsiveContainer>
         </Paper>
-
-        {byDiff.length > 0 && (
-          <Paper variant="outlined" sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, flex: 1 }}>
-            <Typography variant="subtitle2" fontWeight={700} mb={2}>Difficulty Breakdown</Typography>
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie
-                  data={byDiff}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={70}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  labelLine={false}
-                >
-                  {byDiff.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <ChartTooltip formatter={(v, name) => [`${v} peaks`, name]} />
-              </PieChart>
-            </ResponsiveContainer>
-          </Paper>
-        )}
-      </Stack>
+      )}
     </Stack>
   );
 }
@@ -550,6 +576,7 @@ export default function ProfilePage() {
   const { data: myLists, isLoading: listsLoading } = trpc.list.myLists.useQuery(undefined, { enabled: !!accessToken });
   const { data: streak } = trpc.user.streak.useQuery(undefined, { enabled: !!accessToken });
   const { data: personalBests } = trpc.user.personalBests.useQuery(undefined, { enabled: !!accessToken });
+  const { data: rangeProgress } = trpc.user.rangeProgress.useQuery(undefined, { enabled: !!accessToken });
   const { data: myPlans } = trpc.plannedHike.myPlans.useQuery(undefined, { enabled: !!accessToken });
 
   const earnedTypes = new Set(achievements?.map((a) => a.type) ?? []);
@@ -897,7 +924,7 @@ export default function ProfilePage() {
 
             {/* ── Tab 2: Stats ── */}
             {tab === 2 && (
-              <StatsTab completions={completions ?? []} personalBests={personalBests ?? null} />
+              <StatsTab completions={completions ?? []} personalBests={personalBests ?? null} rangeProgress={rangeProgress} />
             )}
 
             {/* ── Tab 3: Achievements ── */}

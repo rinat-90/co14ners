@@ -477,6 +477,48 @@ export const userRouter = router({
       return { me, them };
     }),
 
+  rangeProgress: protectedProcedure.query(async ({ ctx }) => {
+    const RANGE_LABELS: Record<string, string> = {
+      SAWATCH:           "Sawatch Range",
+      ELK:               "Elk Mountains",
+      SAN_JUAN:          "San Juan Mountains",
+      TENMILE_MOSQUITO:  "Tenmile / Mosquito",
+      FRONT:             "Front Range",
+      SANGRE_DE_CRISTO:  "Sangre de Cristo",
+      OTHER:             "Other",
+    };
+
+    const [allMountains, completions] = await Promise.all([
+      prisma.mountain.findMany({ select: { id: true, range: true } }),
+      prisma.completion.findMany({
+        where: { userId: ctx.user.id },
+        select: { mountainId: true },
+        distinct: ["mountainId"],
+      }),
+    ]);
+
+    const summitedIds = new Set(completions.map((c) => c.mountainId));
+
+    const totals: Record<string, number> = {};
+    const done: Record<string, number> = {};
+    for (const m of allMountains) {
+      totals[m.range] = (totals[m.range] ?? 0) + 1;
+      if (summitedIds.has(m.id)) done[m.range] = (done[m.range] ?? 0) + 1;
+    }
+
+    return Object.keys(totals)
+      .filter((r) => r !== "OTHER")
+      .map((range) => ({
+        range,
+        label: RANGE_LABELS[range] ?? range,
+        total: totals[range] ?? 0,
+        completed: done[range] ?? 0,
+        isComplete: (done[range] ?? 0) >= totals[range] && totals[range] > 0,
+        pct: Math.round(((done[range] ?? 0) / (totals[range] ?? 1)) * 100),
+      }))
+      .sort((a, b) => b.pct - a.pct);
+  }),
+
   leaderboard: publicProcedure
     .input(z.object({ metric: z.enum(["summits", "elevation", "unique"]).default("summits"), limit: z.number().int().min(1).max(100).default(25) }))
     .query(async ({ input }) => {

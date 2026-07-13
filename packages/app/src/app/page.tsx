@@ -224,6 +224,61 @@ function MiniFollowingFeed() {
   );
 }
 
+// ── Range Tracker Widget ─────────────────────────────────────────────────────
+
+function RangeTrackerWidget() {
+  const { data: ranges, isLoading } = trpc.user.rangeProgress.useQuery();
+
+  if (isLoading) return null;
+  if (!ranges || ranges.length === 0) return null;
+
+  // Show top 3 by progress + any completed ones at top
+  const completed = ranges.filter((r) => r.isComplete);
+  const inProgress = ranges.filter((r) => !r.isComplete && r.completed > 0).slice(0, 3);
+  const display = [...completed, ...inProgress].slice(0, 4);
+  if (display.length === 0) return null;
+
+  return (
+    <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3 }}>
+      <Stack direction="row" alignItems="center" spacing={1} mb={2}>
+        <MapIcon color="success" sx={{ fontSize: "1.1rem" }} />
+        <Typography variant="subtitle1" fontWeight={700}>Range Completion</Typography>
+        <Box flex={1} />
+        <Button component={NextLink} href="/profile" size="small" endIcon={<ArrowForwardIcon />} sx={{ fontSize: "0.75rem" }}>
+          All ranges
+        </Button>
+      </Stack>
+      <Stack spacing={1.25}>
+        {display.map((r) => (
+          <Box key={r.range}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" mb={0.3}>
+              <Stack direction="row" spacing={0.75} alignItems="center">
+                <Typography variant="body2" sx={{ fontSize: "0.8rem", fontWeight: 600 }}>{r.label}</Typography>
+                {r.isComplete && (
+                  <Chip label="✓" size="small" sx={{ height: 16, minWidth: 24, fontSize: "0.6rem", fontWeight: 800, bgcolor: "success.main", color: "white", px: 0 }} />
+                )}
+              </Stack>
+              <Typography variant="caption" color={r.isComplete ? "success.main" : "text.secondary"} fontWeight={r.isComplete ? 700 : 400}>
+                {r.completed}/{r.total}
+              </Typography>
+            </Stack>
+            <LinearProgress
+              variant="determinate"
+              value={r.pct}
+              sx={{
+                height: 7,
+                borderRadius: 4,
+                bgcolor: "action.hover",
+                "& .MuiLinearProgress-bar": { bgcolor: r.isComplete ? "success.main" : "primary.main", borderRadius: 4 },
+              }}
+            />
+          </Box>
+        ))}
+      </Stack>
+    </Paper>
+  );
+}
+
 // ── On This Day ──────────────────────────────────────────────────────────────
 
 function OnThisDayWidget() {
@@ -481,6 +536,7 @@ export default function HomePage() {
             <QuickLinks />
             <OnThisDayWidget />
             <ProgressSection />
+            <RangeTrackerWidget />
             <MiniFollowingFeed />
             <BestConditionsWidget />
             <RecommendationsSection />
