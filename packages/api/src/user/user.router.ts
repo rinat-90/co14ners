@@ -519,6 +519,38 @@ export const userRouter = router({
       .sort((a, b) => b.pct - a.pct);
   }),
 
+  sharedSummits: protectedProcedure
+    .input(z.object({ userId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      if (ctx.user.id === input.userId) return [];
+
+      const [mine, theirs] = await Promise.all([
+        prisma.completion.findMany({
+          where: { userId: ctx.user.id },
+          select: { mountainId: true },
+          distinct: ["mountainId"],
+        }),
+        prisma.completion.findMany({
+          where: { userId: input.userId, isPrivate: false },
+          select: { mountainId: true },
+          distinct: ["mountainId"],
+        }),
+      ]);
+
+      const theirSet = new Set(theirs.map((c) => c.mountainId));
+      const sharedIds = mine.map((c) => c.mountainId).filter((id) => theirSet.has(id));
+
+      if (sharedIds.length === 0) return [];
+
+      const mountains = await prisma.mountain.findMany({
+        where: { id: { in: sharedIds } },
+        select: { id: true, name: true, altitude: true, difficulty: true },
+        orderBy: { altitude: "desc" },
+      });
+
+      return mountains;
+    }),
+
   activityHeatmap: protectedProcedure.query(async ({ ctx }) => {
     const since = new Date();
     since.setFullYear(since.getFullYear() - 1);

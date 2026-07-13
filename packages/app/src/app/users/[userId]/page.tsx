@@ -22,6 +22,7 @@ import PersonRemoveIcon from "@mui/icons-material/PersonRemove";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import PlaylistAddCheckIcon from "@mui/icons-material/PlaylistAddCheck";
+import HandshakeIcon from "@mui/icons-material/Handshake";
 import AppHeader from "@/components/AppHeader";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
 import { useAuth } from "@/lib/auth-context";
@@ -59,6 +60,10 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
   const { data: tripReports } = trpc.tripReport.byUser.useQuery({ userId }, { enabled: !!userId });
   const { data: publicLists } = trpc.list.byUser.useQuery({ userId }, { enabled: !!userId });
   const { data: followCounts } = trpc.user.followCounts.useQuery({ userId }, { enabled: !!userId });
+  const { data: sharedSummits } = trpc.user.sharedSummits.useQuery(
+    { userId },
+    { enabled: !!accessToken && !!userId && me?.id !== userId }
+  );
   const { data: followStatus } = trpc.user.isFollowing.useQuery(
     { userId },
     { enabled: !!accessToken && !!userId && me?.id !== userId }
@@ -332,6 +337,48 @@ export default function PublicProfilePage({ params }: { params: Promise<{ userId
                   <PlaylistAddCheckIcon sx={{ color: "text.secondary", fontSize: "1.1rem", flexShrink: 0 }} />
                   <Typography variant="body2" fontWeight={600} sx={{ flex: 1 }} noWrap>{lst.name}</Typography>
                   <Chip label={`${lst._count.items} peak${lst._count.items !== 1 ? "s" : ""}`} size="small" variant="outlined" />
+                </Box>
+              ))}
+            </Stack>
+          </Paper>
+        )}
+
+        {/* Peaks in Common — only shown to logged-in users viewing someone else */}
+        {sharedSummits && sharedSummits.length > 0 && (
+          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, border: "1px solid", borderColor: "primary.light", bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(59,130,246,0.07)" : "rgba(59,130,246,0.04)" }}>
+            <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
+              <HandshakeIcon sx={{ color: "primary.main", fontSize: "1.2rem" }} />
+              <Typography variant="h6" fontWeight={600} sx={{ fontSize: { xs: "1rem", md: "1.1rem" }, flex: 1 }}>
+                Peaks in Common
+              </Typography>
+              <Chip label={sharedSummits.length} size="small" color="primary" />
+            </Stack>
+            <Stack divider={<Divider />} spacing={0}>
+              {sharedSummits.map((m) => (
+                <Box
+                  key={m.id}
+                  component={NextLink}
+                  href={`/mountains/${toSlug(m.name)}`}
+                  sx={{
+                    py: 1.25,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    textDecoration: "none",
+                    color: "inherit",
+                    "&:hover .peak-name": { color: "primary.main" },
+                  }}
+                >
+                  <TerrainIcon sx={{ color: "primary.main", fontSize: "1rem", flexShrink: 0 }} />
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography className="peak-name" variant="body2" fontWeight={600} noWrap sx={{ transition: "color 0.15s" }}>
+                      {m.name}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {m.altitude.toLocaleString()} ft
+                    </Typography>
+                  </Box>
+                  <DifficultyChip difficulty={m.difficulty as "CLASS_1" | "CLASS_2" | "CLASS_3" | "CLASS_4" | "CLASS_5"} size="small" />
                 </Box>
               ))}
             </Stack>
