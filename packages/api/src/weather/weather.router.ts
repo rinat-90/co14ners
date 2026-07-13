@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { router, publicProcedure } from "../trpc.js";
+import { router, publicProcedure, protectedProcedure } from "../trpc.js";
+import { prisma } from "../lib/prisma.js";
 
 // WMO Weather interpretation codes → human label + icon key
 const WMO_CODES: Record<number, { label: string; icon: "clear" | "partly-cloudy" | "cloudy" | "rain" | "snow" | "thunderstorm" }> = {
@@ -73,4 +74,90 @@ export const weatherRouter = router({
         };
       });
     }),
+
+  /** Fetch weather alerts for user's saved + planned mountains (best-day windows in next 3 days) */
+  alerts: protectedProcedure.query(async ({ ctx }) => {
+    // Gather mountains from favorites + upcoming planned hikes
+    const [favorites, plans] = await Promise.all([
+      prisma.favorite.findMany({
+        where: { userId: ctx.user.id },
+        select: { mountain: { select: { id: true, name: true, latitude: true, longitude: true } } },
+        take: 10,
+      }),
+      prisma.plannedHike.findMany({
+        where: { userId: ctx.user.id, plannedDate: { gte: new Date() } },
+        orderBy: { plannedDate: "asc" },
+        select: { mountain: { select: { id: true, name: true, latitude: true, longitude: true } }, plannedDate: true },
+        take: 5,
+      }),
+    ]);
+
+    // Deduplicate by mountain id, planned hikes first
+    const seen = new Set<string>();
+    const mountains: { id: string; name: string; latitude: number; longitude: number; plannedDate?: Date }[] = [];
+    for (const p of plans) {
+      if (!seen.has(p.mountain.id)) {
+        seen.add(p.mountain.id);
+        mountains.push({ ...p.mountain, plannedDate: p.plannedDate });
+      }
+    }
+    for (const f of favorites) {
+      if (!seen.has(f.mountain.id)) {
+        seen.add(f.mountain.id);
+        mountains.push(f.mountain);
+      }
+    }
+
+    if (mountains.length === 0) return [];
+
+    const today = new Date().toISOString().slice(0, 10);
+    const threeDaysOut = new Date(Date.now() + 3 * 86400_000).toISOString().slice(0, 10);
+
+    async function fetchForecast(lat: number, lng: number) {
+      const url =
+        `https://api.open-meteo.com/v1/forecast` +
+        `?latitude=${lat}&longitude=${lng}` +
+        `&daily=weathercode,temperature_2m_max,precipitation_probability_max,windspeed_10m_max` +
+        `&wind_speed_unit=mph&temperature_unit=fahrenheit&forecast_days=4&timezone=America%2FDenver`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const data = (await res.json()) as {
+        daily: {
+          time: string[];
+          weathercode: number[];
+          temperature_2m_max: number[];
+          precipitation_probability_max: number[];
+          windspeed_10m_max: number[];
+        };
+      };
+      return data.daily;
+    }
+
+    const results = await Promise.all(
+      mountains.slice(0, 8).map(async (m) => {
+        const daily = await fetchForecast(m.latitude, m.longitude).catch(() => null);
+        if (!daily) return null;
+
+        const bestDays = daily.time
+          .map((date, i) => {
+            const precipChance = daily.precipitation_probability_max[i] ?? 100;
+            const windMax = Math.round(daily.windspeed_10m_max[i] ?? 999);
+            const tempMax = Math.round(daily.temperature_2m_max[i] ?? 0);
+            const wmo = WMO_CODES[daily.weathercode[i]] ?? { icon: "cloudy" as const };
+            return { date, precipChance, windMax, tempMax, icon: wmo.icon, isBestDay: precipChance < 30 && windMax < 20 };
+          })
+          .filter((d) => d.isBestDay && d.date >= today && d.date <= threeDaysOut);
+
+        if (bestDays.length === 0) return null;
+        return {
+          mountainId: m.id,
+          mountainName: m.name,
+          plannedDate: m.plannedDate ? m.plannedDate.toISOString().slice(0, 10) : null,
+          bestDays,
+        };
+      })
+    );
+
+    return results.filter(Boolean);
+  }),
 });

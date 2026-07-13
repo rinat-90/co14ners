@@ -24,6 +24,12 @@ import StarIcon from "@mui/icons-material/Star";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import WbSunnyIcon from "@mui/icons-material/WbSunny";
+import AcUnitIcon from "@mui/icons-material/AcUnit";
+import CloudIcon from "@mui/icons-material/Cloud";
+import ThunderstormIcon from "@mui/icons-material/Thunderstorm";
+import GrainIcon from "@mui/icons-material/Grain";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import MyLocationIcon from "@mui/icons-material/MyLocation";
@@ -441,6 +447,96 @@ function BestConditionsWidget() {
   );
 }
 
+// ── Weather Alerts Widget ─────────────────────────────────────────────────────
+
+const WEATHER_ICON: Record<string, React.ReactNode> = {
+  clear:          <WbSunnyIcon sx={{ color: "warning.main", fontSize: "1.1rem" }} />,
+  "partly-cloudy": <CloudIcon sx={{ color: "info.light", fontSize: "1.1rem" }} />,
+  cloudy:         <CloudIcon sx={{ color: "text.disabled", fontSize: "1.1rem" }} />,
+  rain:           <GrainIcon sx={{ color: "info.main", fontSize: "1.1rem" }} />,
+  snow:           <AcUnitIcon sx={{ color: "info.light", fontSize: "1.1rem" }} />,
+  thunderstorm:   <ThunderstormIcon sx={{ color: "error.main", fontSize: "1.1rem" }} />,
+};
+
+function fmtAlertDate(iso: string) {
+  const d = new Date(iso + "T12:00:00"); // noon to avoid timezone edge
+  const today = new Date();
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  if (iso === today.toISOString().slice(0, 10)) return "Today";
+  if (iso === tomorrow.toISOString().slice(0, 10)) return "Tomorrow";
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function WeatherAlertsWidget() {
+  const { data: alerts, isLoading } = trpc.weather.alerts.useQuery();
+
+  // Don't render if no saved/planned mountains at all (empty result is [])
+  if (!isLoading && (!alerts || alerts.length === 0)) return null;
+
+  return (
+    <Paper sx={{ p: { xs: 2.5, md: 3 }, borderRadius: 3, border: "1px solid", borderColor: "success.light", bgcolor: (theme) => theme.palette.mode === "dark" ? "rgba(34,197,94,0.07)" : "rgba(34,197,94,0.05)" }}>
+      <Stack direction="row" alignItems="center" spacing={1.5} mb={isLoading ? 2 : alerts && alerts.length > 0 ? 2 : 0}>
+        <NotificationsActiveIcon sx={{ color: "success.main", fontSize: 22 }} />
+        <Typography variant="h6" fontWeight={700} sx={{ flex: 1, color: "success.dark" }}>
+          Good Weather Windows
+        </Typography>
+      </Stack>
+
+      {isLoading ? (
+        <Stack spacing={1}>
+          {[0, 1].map((i) => <Skeleton key={i} variant="rounded" height={52} sx={{ borderRadius: 2 }} />)}
+        </Stack>
+      ) : (
+        <Stack spacing={1}>
+          {alerts!.map((alert) => (
+            <Paper
+              key={alert!.mountainId}
+              component={NextLink}
+              href={`/mountains/${toSlug(alert!.mountainName)}`}
+              variant="outlined"
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                textDecoration: "none",
+                color: "inherit",
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                borderColor: "success.light",
+                "&:hover": { boxShadow: 2 },
+              }}
+            >
+              <CheckCircleIcon sx={{ color: "success.main", fontSize: 22, flexShrink: 0 }} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="subtitle2" fontWeight={700} noWrap>{alert!.mountainName}</Typography>
+                <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap" useFlexGap>
+                  {alert!.bestDays.map((day) => (
+                    <Stack key={day.date} direction="row" spacing={0.5} alignItems="center">
+                      {WEATHER_ICON[day.icon] ?? WEATHER_ICON.cloudy}
+                      <Typography variant="caption" color="success.dark" fontWeight={600}>
+                        {fmtAlertDate(day.date)}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        · {day.tempMax}°F · {day.precipChance}% rain · {day.windMax} mph
+                      </Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+                {alert!.plannedDate && (
+                  <Typography variant="caption" color="primary.main" fontWeight={600}>
+                    You planned: {fmtAlertDate(alert!.plannedDate)}
+                  </Typography>
+                )}
+              </Box>
+              <ArrowForwardIcon sx={{ color: "text.disabled", fontSize: 18, flexShrink: 0 }} />
+            </Paper>
+          ))}
+        </Stack>
+      )}
+    </Paper>
+  );
+}
+
 // ── Recommendations ───────────────────────────────────────────────────────────
 
 function RecommendationsSection() {
@@ -730,6 +826,7 @@ export default function HomePage() {
             <RangeTrackerWidget />
             <MiniFollowingFeed />
             <BestConditionsWidget />
+            <WeatherAlertsWidget />
             <RecommendationsSection />
           </Stack>
         </Box>
