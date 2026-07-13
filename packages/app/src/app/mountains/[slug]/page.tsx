@@ -68,6 +68,7 @@ import MyLocationIcon from "@mui/icons-material/MyLocation";
 import NaturePeopleIcon from "@mui/icons-material/NaturePeople";
 import RouteIcon from "@mui/icons-material/Route";
 import LandscapeIcon from "@mui/icons-material/Landscape";
+import NavigationIcon from "@mui/icons-material/Navigation";
 import StarIcon from "@mui/icons-material/Star";
 import ShareIcon from "@mui/icons-material/Share";
 import TerrainIcon from "@mui/icons-material/Terrain";
@@ -2105,6 +2106,15 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
                     sx={{ bgcolor: "rgba(255,255,255,0.2)", backdropFilter: "blur(4px)", "&:hover": { bgcolor: "rgba(255,255,255,0.3)" } }}
                   >
                     {myCompletion ? "Log Again" : "Log Summit"}
+                  </Button>
+                  <Button
+                    component={NextLink}
+                    href={`/hike/${slug}`}
+                    variant="contained"
+                    startIcon={<NavigationIcon />}
+                    sx={{ bgcolor: "rgba(255,255,255,0.15)", backdropFilter: "blur(4px)", "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}
+                  >
+                    Start Hike
                   </Button>
                   <Tooltip title={isFavorite ? "Remove from saved" : "Save peak"}>
                     <IconButton
