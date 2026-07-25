@@ -7,6 +7,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
+import Grid from "@mui/material/Grid";
 import LinearProgress from "@mui/material/LinearProgress";
 import Paper from "@mui/material/Paper";
 import Skeleton from "@mui/material/Skeleton";
@@ -837,6 +838,12 @@ export default function HomePage() {
   }
 
   // ── Logged-out landing ─────────────────────────────────────────────────────
+  const globalStatCards = [
+    { icon: <TerrainIcon />, color: "primary.main", value: stats?.mountains, label: "Colorado 14ers", href: "/mountains", cta: "All peaks →" },
+    { icon: <EmojiEventsIcon />, color: "secondary.main", value: stats?.summits, label: "Community summits", href: "/feed", cta: "Activity →" },
+    { icon: <PeopleIcon />, color: "warning.main", value: stats?.saves, label: "Peaks on wishlists", href: "/leaderboard", cta: "Leaderboard →" },
+  ];
+
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
       <AppHeader />
@@ -883,26 +890,44 @@ export default function HomePage() {
 
       {/* Global stats */}
       <Box sx={{ maxWidth: 800, mx: "auto", px: { xs: 2, md: 4 }, py: 6 }}>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={3}>
-          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, flex: 1, textAlign: "center" }}>
-            <TerrainIcon sx={{ fontSize: 40, color: "primary.main", mb: 1 }} />
-            <Typography variant="h5" fontWeight={700}>{stats?.mountains ?? "—"}</Typography>
-            <Typography color="text.secondary">Colorado 14ers</Typography>
-            <Button component={NextLink} href="/mountains" size="small" sx={{ mt: 1.5 }}>View all peaks →</Button>
-          </Paper>
-          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, flex: 1, textAlign: "center" }}>
-            <EmojiEventsIcon sx={{ fontSize: 40, color: "secondary.main", mb: 1 }} />
-            <Typography variant="h5" fontWeight={700}>{stats?.summits ?? "—"}</Typography>
-            <Typography color="text.secondary">Community summits</Typography>
-            <Button component={NextLink} href="/feed" size="small" sx={{ mt: 1.5 }}>See activity →</Button>
-          </Paper>
-          <Paper sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, flex: 1, textAlign: "center" }}>
-            <PeopleIcon sx={{ fontSize: 40, color: "warning.main", mb: 1 }} />
-            <Typography variant="h5" fontWeight={700}>{stats?.saves ?? "—"}</Typography>
-            <Typography color="text.secondary">Peaks on wishlists</Typography>
-            <Button component={NextLink} href="/leaderboard" size="small" sx={{ mt: 1.5 }}>Leaderboard →</Button>
-          </Paper>
-        </Stack>
+        <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }}>
+          {globalStatCards.map(({ icon, color, value, label, href, cta }) => (
+            <Grid key={href} size={4}>
+              <Paper
+                sx={{
+                  p: { xs: 1.5, sm: 2, md: 3 },
+                  borderRadius: 3,
+                  height: "100%",
+                  textAlign: "center",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                }}
+              >
+                <Box sx={{ color, mb: { xs: 0.5, md: 1 }, "& svg": { fontSize: { xs: 26, sm: 32, md: 40 } } }}>{icon}</Box>
+                <Typography variant="h5" fontWeight={700} sx={{ fontSize: { xs: "1.1rem", sm: "1.35rem", md: "1.5rem" } }}>
+                  {value ?? "—"}
+                </Typography>
+                <Typography color="text.secondary" sx={{ fontSize: { xs: "0.7rem", sm: "0.85rem", md: "1rem" }, lineHeight: 1.3 }}>
+                  {label}
+                </Typography>
+                <Button
+                  component={NextLink}
+                  href={href}
+                  size="small"
+                  sx={{
+                    mt: { xs: 1, md: 1.5 },
+                    minWidth: 0,
+                    px: { xs: 0.5, md: 1 },
+                    fontSize: { xs: "0.65rem", sm: "0.75rem", md: "0.8125rem" },
+                  }}
+                >
+                  {cta}
+                </Button>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
 
         {/* Conditions widget — shows real community data to logged-out visitors */}
         <Box mt={4}>
