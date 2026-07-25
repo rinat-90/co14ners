@@ -113,8 +113,22 @@ export default function UserSearchPage() {
 
   const { data: results, isLoading } = trpc.user.search.useQuery(
     { query: trimmed },
-    { enabled: trimmed.length >= 2, staleTime: 10_000 }
+    { enabled: !!accessToken && trimmed.length >= 2, staleTime: 10_000 }
   );
+
+  if (!accessToken) {
+    return (
+      <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+        <AppHeader />
+        <Box sx={{ maxWidth: 600, mx: "auto", mt: 12, textAlign: "center", px: 3 }}>
+          <PeopleIcon sx={{ fontSize: 56, color: "text.disabled", mb: 2 }} />
+          <Typography variant="h5" fontWeight={700} mb={1}>Find climbers</Typography>
+          <Typography color="text.secondary" mb={3}>Sign in to search for other climbers and follow them.</Typography>
+          <Button variant="contained" component={NextLink} href="/login?redirect=/users/search">Sign in</Button>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
@@ -147,7 +161,7 @@ export default function UserSearchPage() {
               <SearchIcon sx={{ fontSize: 56, color: "text.disabled", mb: 1 }} />
               <Typography color="text.secondary">Type at least 2 characters to search</Typography>
             </Box>
-            {accessToken && <SuggestedFollows />}
+            <SuggestedFollows />
           </>
         ) : isLoading ? (
           <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>

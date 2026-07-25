@@ -3,12 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 import NextLink from "next/link";
 import Avatar from "@mui/material/Avatar";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
+import Drawer from "@mui/material/Drawer";
 import FormControl from "@mui/material/FormControl";
 import Grid from "@mui/material/Grid";
+import IconButton from "@mui/material/IconButton";
 import InputLabel from "@mui/material/InputLabel";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
@@ -20,6 +23,7 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import ArticleIcon from "@mui/icons-material/Article";
 import CameraAltIcon from "@mui/icons-material/CameraAlt";
+import CloseIcon from "@mui/icons-material/Close";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import AppHeader from "@/components/AppHeader";
@@ -59,6 +63,39 @@ const CONDITIONS_META: Record<string, { label: string; color: string }> = {
   FAIR:      { label: "Fair",      color: "warning" },
   POOR:      { label: "Poor",      color: "error" },
 };
+
+const CONDITIONS_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(CONDITIONS_META).map(([value, { label }]) => [value, label])
+);
+
+const DIFFICULTY_LABELS: Record<string, string> = {
+  CLASS_1: "Class 1", CLASS_2: "Class 2", CLASS_3: "Class 3",
+  CLASS_4: "Class 4", CLASS_5: "Class 5",
+};
+
+// ── Filter select — shared by the desktop row and the mobile bottom sheet ─────
+
+function FilterSelect<T extends string>({
+  label, emptyLabel, value, options, onChange, fullWidth, minWidth,
+}: {
+  label: string;
+  emptyLabel: string;
+  value: T;
+  options: Record<string, string>;
+  onChange: (value: T) => void;
+  fullWidth?: boolean;
+  minWidth?: number;
+}) {
+  return (
+    <FormControl size="small" fullWidth={fullWidth} sx={fullWidth ? undefined : { minWidth }}>
+      <InputLabel>{label}</InputLabel>
+      <Select value={value} label={label} onChange={(e) => onChange(e.target.value as T)}>
+        <MenuItem value="">{emptyLabel}</MenuItem>
+        {Object.entries(options).map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
+      </Select>
+    </FormControl>
+  );
+}
 
 // ── Report Card ───────────────────────────────────────────────────────────────
 
@@ -195,6 +232,7 @@ export default function ReportsPage() {
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [allItems, setAllItems] = useState<Report[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false);
 
   const prevCursorRef = useRef<string | undefined>(undefined);
 
@@ -225,6 +263,17 @@ export default function ReportsPage() {
     setInitialized(false);
   };
 
+  const activeFilterCount =
+    (range ? 1 : 0) + (conditions ? 1 : 0) + (difficulty ? 1 : 0) + (photoOnly ? 1 : 0);
+
+  function clearAllFilters() {
+    setRange("");
+    setConditions("");
+    setDifficulty("");
+    setPhotoOnly(false);
+    handleFilterChange();
+  }
+
   const skeletonCount = 8;
 
   return (
@@ -243,58 +292,38 @@ export default function ReportsPage() {
           </Typography>
         </Stack>
 
-        {/* Filters */}
-        <Paper sx={{ p: 2, borderRadius: 3, mb: 3 }}>
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }} flexWrap="wrap" useFlexGap>
+        {/* ── Desktop filters row ─────────────────────────────────────────────── */}
+        <Paper sx={{ p: 2, borderRadius: 3, mb: 3, display: { xs: "none", sm: "block" } }}>
+          <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
             <Stack direction="row" alignItems="center" spacing={1}>
               <FilterListIcon sx={{ color: "text.secondary", fontSize: "1.1rem" }} />
               <Typography variant="body2" fontWeight={600} color="text.secondary">Filter</Typography>
             </Stack>
 
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <InputLabel>Range</InputLabel>
-              <Select
-                value={range}
-                label="Range"
-                onChange={(e) => { setRange(e.target.value as Range); handleFilterChange(); }}
-              >
-                <MenuItem value="">All ranges</MenuItem>
-                {Object.entries(RANGE_LABELS).map(([v, l]) => (
-                  <MenuItem key={v} value={v}>{l}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>Conditions</InputLabel>
-              <Select
-                value={conditions}
-                label="Conditions"
-                onChange={(e) => { setConditions(e.target.value as Conditions); handleFilterChange(); }}
-              >
-                <MenuItem value="">Any conditions</MenuItem>
-                <MenuItem value="EXCELLENT">Excellent</MenuItem>
-                <MenuItem value="GOOD">Good</MenuItem>
-                <MenuItem value="FAIR">Fair</MenuItem>
-                <MenuItem value="POOR">Poor</MenuItem>
-              </Select>
-            </FormControl>
-
-            <FormControl size="small" sx={{ minWidth: 140 }}>
-              <InputLabel>Difficulty</InputLabel>
-              <Select
-                value={difficulty}
-                label="Difficulty"
-                onChange={(e) => { setDifficulty(e.target.value as Difficulty); handleFilterChange(); }}
-              >
-                <MenuItem value="">Any difficulty</MenuItem>
-                <MenuItem value="CLASS_1">Class 1</MenuItem>
-                <MenuItem value="CLASS_2">Class 2</MenuItem>
-                <MenuItem value="CLASS_3">Class 3</MenuItem>
-                <MenuItem value="CLASS_4">Class 4</MenuItem>
-                <MenuItem value="CLASS_5">Class 5</MenuItem>
-              </Select>
-            </FormControl>
+            <FilterSelect
+              label="Range"
+              emptyLabel="All ranges"
+              value={range}
+              options={RANGE_LABELS}
+              onChange={(v: Range) => { setRange(v); handleFilterChange(); }}
+              minWidth={150}
+            />
+            <FilterSelect
+              label="Conditions"
+              emptyLabel="Any conditions"
+              value={conditions}
+              options={CONDITIONS_LABELS}
+              onChange={(v: Conditions) => { setConditions(v); handleFilterChange(); }}
+              minWidth={140}
+            />
+            <FilterSelect
+              label="Difficulty"
+              emptyLabel="Any difficulty"
+              value={difficulty}
+              options={DIFFICULTY_LABELS}
+              onChange={(v: Difficulty) => { setDifficulty(v); handleFilterChange(); }}
+              minWidth={140}
+            />
 
             <FormControlLabel
               control={
@@ -312,23 +341,123 @@ export default function ReportsPage() {
               }
             />
 
-            {(range || conditions || difficulty || photoOnly) && (
-              <Button
-                size="small"
-                variant="text"
-                onClick={() => {
-                  setRange("");
-                  setConditions("");
-                  setDifficulty("");
-                  setPhotoOnly(false);
-                  handleFilterChange();
-                }}
-              >
+            {activeFilterCount > 0 && (
+              <Button size="small" variant="text" onClick={clearAllFilters}>
                 Clear filters
               </Button>
             )}
           </Stack>
         </Paper>
+
+        {/* ── Mobile filter button ────────────────────────────────────────────── */}
+        <Box sx={{ display: { xs: "block", sm: "none" }, mb: activeFilterCount > 0 ? 1.5 : 3 }}>
+          <Badge badgeContent={activeFilterCount} color="primary" invisible={activeFilterCount === 0} sx={{ width: "100%" }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={() => setFilterDrawerOpen(true)}
+              sx={{ borderRadius: 2, justifyContent: "center" }}
+            >
+              Filters
+            </Button>
+          </Badge>
+        </Box>
+
+        {/* Active filters summary — mobile only */}
+        {activeFilterCount > 0 && (
+          <Stack direction="row" spacing={1} mb={3} flexWrap="wrap" useFlexGap sx={{ display: { xs: "flex", sm: "none" } }}>
+            {range && (
+              <Chip size="small" label={RANGE_LABELS[range]} onDelete={() => { setRange(""); handleFilterChange(); }} />
+            )}
+            {conditions && (
+              <Chip
+                size="small"
+                label={CONDITIONS_LABELS[conditions]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                color={CONDITIONS_META[conditions].color as any}
+                onDelete={() => { setConditions(""); handleFilterChange(); }}
+              />
+            )}
+            {difficulty && (
+              <Chip size="small" label={DIFFICULTY_LABELS[difficulty]} onDelete={() => { setDifficulty(""); handleFilterChange(); }} />
+            )}
+            {photoOnly && (
+              <Chip size="small" icon={<CameraAltIcon />} label="Photos only" onDelete={() => { setPhotoOnly(false); handleFilterChange(); }} />
+            )}
+          </Stack>
+        )}
+
+        {/* ── Mobile filter bottom sheet ──────────────────────────────────────── */}
+        <Drawer
+          anchor="bottom"
+          open={filterDrawerOpen}
+          onClose={() => setFilterDrawerOpen(false)}
+          slotProps={{ paper: { sx: { borderTopLeftRadius: 16, borderTopRightRadius: 16, px: 2.5, pt: 1.5, pb: 4, maxHeight: "85vh" } } }}
+        >
+          {/* Handle */}
+          <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: "divider", mx: "auto", mb: 2 }} />
+          <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
+            <Typography variant="h6" fontWeight={700}>Filters</Typography>
+            <IconButton size="small" onClick={() => setFilterDrawerOpen(false)}><CloseIcon /></IconButton>
+          </Stack>
+
+          <Stack spacing={2}>
+            <FilterSelect
+              label="Range"
+              emptyLabel="All ranges"
+              value={range}
+              options={RANGE_LABELS}
+              onChange={(v: Range) => { setRange(v); handleFilterChange(); }}
+              fullWidth
+            />
+            <FilterSelect
+              label="Conditions"
+              emptyLabel="Any conditions"
+              value={conditions}
+              options={CONDITIONS_LABELS}
+              onChange={(v: Conditions) => { setConditions(v); handleFilterChange(); }}
+              fullWidth
+            />
+            <FilterSelect
+              label="Difficulty"
+              emptyLabel="Any difficulty"
+              value={difficulty}
+              options={DIFFICULTY_LABELS}
+              onChange={(v: Difficulty) => { setDifficulty(v); handleFilterChange(); }}
+              fullWidth
+            />
+
+            <Divider />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={photoOnly}
+                  onChange={(e) => { setPhotoOnly(e.target.checked); handleFilterChange(); }}
+                />
+              }
+              label={
+                <Stack direction="row" spacing={0.75} alignItems="center">
+                  <CameraAltIcon sx={{ fontSize: "1rem" }} />
+                  <Typography variant="body2">Photos only</Typography>
+                </Stack>
+              }
+            />
+
+            <Stack direction="row" spacing={1.5} pt={1}>
+              {activeFilterCount > 0 && (
+                <Button variant="outlined" fullWidth onClick={() => { clearAllFilters(); setFilterDrawerOpen(false); }}>
+                  Clear all
+                </Button>
+              )}
+              <Button variant="contained" fullWidth onClick={() => setFilterDrawerOpen(false)}>
+                {isFetching
+                  ? "Loading…"
+                  : `Show ${allItems.length}${data?.nextCursor ? "+" : ""} report${allItems.length !== 1 ? "s" : ""}`}
+              </Button>
+            </Stack>
+          </Stack>
+        </Drawer>
 
         {/* Grid */}
         {isLoading && !initialized ? (

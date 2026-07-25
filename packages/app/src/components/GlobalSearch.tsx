@@ -19,6 +19,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import SearchIcon from "@mui/icons-material/Search";
 import TerrainIcon from "@mui/icons-material/Terrain";
 import DifficultyChip from "@/components/mountains/DifficultyChip";
+import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
 
 function toSlug(name: string) {
@@ -32,6 +33,7 @@ interface Props {
 
 export default function GlobalSearch({ open, onClose }: Props) {
   const router = useRouter();
+  const { accessToken } = useAuth();
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +51,8 @@ export default function GlobalSearch({ open, onClose }: Props) {
   }, [open]);
 
   const enabled = debouncedQuery.length >= 1;
+  // Climber search is for signed-in users only
+  const canSearchUsers = !!accessToken;
 
   const { data: mountains, isFetching: fetchingMountains } = trpc.mountain.search.useQuery(
     { query: debouncedQuery },
@@ -56,11 +60,11 @@ export default function GlobalSearch({ open, onClose }: Props) {
   );
   const { data: users, isFetching: fetchingUsers } = trpc.user.search.useQuery(
     { query: debouncedQuery },
-    { enabled, placeholderData: (prev) => prev }
+    { enabled: enabled && canSearchUsers, placeholderData: (prev) => prev }
   );
 
   const loading = fetchingMountains || fetchingUsers;
-  const hasResults = (mountains?.length ?? 0) > 0 || (users?.length ?? 0) > 0;
+  const hasResults = (mountains?.length ?? 0) > 0 || (canSearchUsers && (users?.length ?? 0) > 0);
 
   function navigate(href: string) {
     router.push(href);
@@ -80,7 +84,7 @@ export default function GlobalSearch({ open, onClose }: Props) {
           inputRef={inputRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search mountains or climbers…"
+          placeholder={canSearchUsers ? "Search mountains or climbers…" : "Search mountains…"}
           fullWidth
           variant="standard"
           slotProps={{
@@ -132,7 +136,7 @@ export default function GlobalSearch({ open, onClose }: Props) {
                   </>
                 )}
 
-                {(users?.length ?? 0) > 0 && (
+                {canSearchUsers && (users?.length ?? 0) > 0 && (
                   <>
                     {(mountains?.length ?? 0) > 0 && <Divider sx={{ my: 0.5 }} />}
                     <Typography variant="caption" color="text.secondary" sx={{ px: 2, pt: 1.5, pb: 0.5, display: "block", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -168,7 +172,9 @@ export default function GlobalSearch({ open, onClose }: Props) {
         {!enabled && (
           <Box sx={{ px: 3, py: 3 }}>
             <Typography variant="body2" color="text.secondary" textAlign="center">
-              Search all 58 Colorado 14ers and registered climbers
+              {canSearchUsers
+                ? "Search all 58 Colorado 14ers and registered climbers"
+                : "Search all 58 Colorado 14ers"}
             </Typography>
           </Box>
         )}

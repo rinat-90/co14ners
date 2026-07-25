@@ -270,7 +270,9 @@ export const userRouter = router({
       return { followers, following };
     }),
 
-  search: publicProcedure
+  // Protected: searching by name/email exposes climbers' email addresses,
+  // so it is only available to signed-in users.
+  search: protectedProcedure
     .input(z.object({ query: z.string().min(1).max(80) }))
     .query(async ({ input }) => {
       return prisma.user.findMany({
