@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import NextLink from "next/link";
+import { useRouter } from "next/navigation";
 import { MapContainer, TileLayer, Marker, Polyline, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,13 +10,17 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
+import Switch from "@mui/material/Switch";
 import Typography from "@mui/material/Typography";
 import CheckIcon from "@mui/icons-material/Check";
 import DirectionsWalkIcon from "@mui/icons-material/DirectionsWalk";
@@ -24,7 +29,12 @@ import GpsNotFixedIcon from "@mui/icons-material/GpsNotFixed";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import RouteIcon from "@mui/icons-material/Route";
+import SaveIcon from "@mui/icons-material/Save";
 import StopIcon from "@mui/icons-material/Stop";
+import TerrainIcon from "@mui/icons-material/Terrain";
+import { trpc } from "@/lib/trpc";
+import { useAuth } from "@/lib/auth-context";
+import { downloadGPX, formatFeet, type TrackPoint } from "@/lib/track";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +48,25 @@ type GpsPos = {
 
 type TrackingState = "idle" | "selecting" | "tracking" | "paused" | "stopped";
 
+/**
+ * Everything needed to rebuild an interrupted hike. Written to localStorage as
+ * the hike happens: a phone that locks, backgrounds the tab and gets killed by
+ * the OS is the normal case on a 12-hour day, and losing the whole track to it
+ * would defeat the point of recording one.
+ */
+type TrackDraft = {
+  mountainId: string;
+  trailId: string | null;
+  startedAt: number;
+  updatedAt: number;
+  elapsed: number;
+  track: GpsPos[];
+};
+
+const DRAFT_KEY = "co14ners:hike-draft";
+/** Rewrite the draft every this many new points rather than on each one. */
+const DRAFT_EVERY_N_POINTS = 5;
+
 export type HikeTrail = {
   id: string;
   name: string;
@@ -48,6 +77,7 @@ export type HikeTrail = {
 };
 
 export type HikeTrackerProps = {
+  mountainId: string;
   mountainLat: number;
   mountainLng: number;
   mountainName: string;
@@ -88,6 +118,93 @@ function formatDistance(meters: number): string {
   const miles = meters / 1609.34;
   if (miles < 0.1) return `${Math.round(meters)}m`;
   return `${miles.toFixed(2)}mi`;
+}
+
+/**
+ * Cumulative ascent in metres. Phone GPS altitude swings by ten metres or more
+ * while standing still, so a raw sum of positive deltas would invent thousands of
+ * feet of gain over a day. Averaging first and only then counting rises that clear
+ * the noise floor keeps a stationary hiker at zero.
+ *
+ * Must stay in step with `deriveElevation` on the API side, which recomputes this
+ * on save — a live number that changes when the hike is stored reads as a bug.
+ */
+const ALTITUDE_NOISE_METERS = 8;
+const SMOOTHING_WINDOW = 5;
+
+function smoothAltitudes(altitudes: number[]): number[] {
+  if (altitudes.length < SMOOTHING_WINDOW) return altitudes;
+
+  const half = Math.floor(SMOOTHING_WINDOW / 2);
+  const last = altitudes.length - 1;
+  return altitudes.map((_, i) => {
+    let sum = 0;
+    for (let offset = -half; offset <= half; offset++) {
+      sum += altitudes[Math.min(last, Math.max(0, i + offset))];
+    }
+    return sum / SMOOTHING_WINDOW;
+  });
+}
+
+function cumulativeGain(track: GpsPos[]): number | null {
+  const raw = track.map((p) => p.altitude).filter((a): a is number => a !== null);
+  if (raw.length < 2) return null;
+
+  const altitudes = smoothAltitudes(raw);
+
+  let gain = 0;
+  let reference = altitudes[0];
+  for (const altitude of altitudes) {
+    const delta = altitude - reference;
+    if (delta > ALTITUDE_NOISE_METERS) {
+      gain += delta;
+      reference = altitude;
+    } else if (delta < -ALTITUDE_NOISE_METERS) {
+      reference = altitude;
+    }
+  }
+  return Math.round(gain);
+}
+
+/** GPS fixes → the compact tuple format the API stores. */
+function toWirePoints(track: GpsPos[], startedAt: number): TrackPoint[] {
+  return track.map((p) => [
+    p.lat,
+    p.lng,
+    p.altitude === null ? null : Math.round(p.altitude * 10) / 10,
+    // Clamped: a device whose clock jumps backwards mid-hike would otherwise
+    // produce a negative offset and get the whole track rejected.
+    Math.max(0, Math.round((p.timestamp - startedAt) / 1000)),
+  ]);
+}
+
+function readDraft(): TrackDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as TrackDraft;
+    if (!draft?.mountainId || !Array.isArray(draft.track) || draft.track.length < 2) return null;
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(draft: TrackDraft) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Quota exceeded or storage disabled — recording continues either way, the
+    // hike just isn't recoverable if the tab dies.
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // Nothing to do; a stale draft is offered again rather than lost silently.
+  }
 }
 
 /** Parse GeoJSON LineString geometry → Leaflet [lat, lng][] positions.
@@ -297,6 +414,7 @@ function TrailSelectDialog({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function HikeTrackerInner({
+  mountainId,
   mountainLat,
   mountainLng,
   mountainName,
@@ -313,10 +431,44 @@ export default function HikeTrackerInner({
   const [followUser, setFollowUser] = useState(true);
   const [trailFitted, setTrailFitted] = useState(false);
 
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [sharePublicly, setSharePublicly] = useState(true);
+  const [savedTrackId, setSavedTrackId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<TrackDraft | null>(null);
+
   const watchIdRef = useRef<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Shifted forward on resume so `elapsed` counts moving time only. */
   const startTimeRef = useRef<number>(0);
+  /** True wall-clock start, never shifted — this is what the saved track uses. */
+  const wallStartRef = useRef<number>(0);
+  const endedAtRef = useRef<number>(0);
   const pausedAtRef = useRef<number>(0);
+  /** Track length at the last draft write, so writes stay throttled. */
+  const draftPointsRef = useRef<number>(0);
+
+  const router = useRouter();
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
+
+  const saveMutation = trpc.hikeTrack.save.useMutation({
+    onSuccess: (result) => {
+      if (!result) {
+        setSaveError("Couldn't save this hike — the peak it belongs to wasn't found.");
+        return;
+      }
+      setSavedTrackId(result.id);
+      setSaveOpen(false);
+      setSaveError(null);
+      // Saved server-side, so the local copy is no longer the only one.
+      clearDraft();
+      setDraft(null);
+      utils.hikeTrack.myTracks.invalidate();
+      utils.hikeTrack.forMountain.invalidate({ mountainId });
+    },
+    onError: (err) => setSaveError(err.message),
+  });
 
   // Inject pulse animation CSS on mount
   useEffect(() => {
@@ -382,18 +534,88 @@ export default function HikeTrackerInner({
     return () => { stopWatching(); stopTimer(); };
   }, [stopWatching, stopTimer]);
 
+  // ── Draft persistence ───────────────────────────────────────────────────────
+
+  // Offer an interrupted hike back on load. A draft for a different peak is left
+  // untouched so it can still be recovered from that peak's tracker page.
+  useEffect(() => {
+    const stored = readDraft();
+    if (stored?.mountainId === mountainId) setDraft(stored);
+  }, [mountainId]);
+
+  // Mirror the running track to localStorage. Throttled by point count while
+  // tracking, and written immediately on pause so a phone that dies while parked
+  // still has the whole hike.
+  useEffect(() => {
+    if (trackingState !== "tracking" && trackingState !== "paused") return;
+    if (track.length < 2) return;
+    if (trackingState === "tracking" && track.length - draftPointsRef.current < DRAFT_EVERY_N_POINTS) {
+      return;
+    }
+    draftPointsRef.current = track.length;
+    writeDraft({
+      mountainId,
+      trailId: selectedTrail?.id ?? null,
+      startedAt: wallStartRef.current,
+      updatedAt: Date.now(),
+      elapsed,
+      track,
+    });
+  }, [track, trackingState, elapsed, mountainId, selectedTrail]);
+
   // ── Action handlers ─────────────────────────────────────────────────────────
 
   function beginTracking() {
     startTimeRef.current = Date.now();
+    wallStartRef.current = Date.now();
+    draftPointsRef.current = 0;
     setElapsed(0);
     setTrack([]);
     setCurrentPos(null);
     setGpsError(null);
     setFollowUser(true);
+    setSavedTrackId(null);
+    setSaveError(null);
     setTrackingState("tracking");
     startWatching();
     startTimer();
+  }
+
+  /** Pick a recovered hike back up where it left off. */
+  function handleResumeDraft() {
+    if (!draft) return;
+    setTrack(draft.track);
+    setElapsed(draft.elapsed);
+    setSelectedTrail(trails.find((t) => t.id === draft.trailId) ?? null);
+    setTrailFitted(true);
+    wallStartRef.current = draft.startedAt;
+    startTimeRef.current = Date.now() - draft.elapsed * 1000;
+    draftPointsRef.current = draft.track.length;
+    setDraft(null);
+    setFollowUser(true);
+    setTrackingState("tracking");
+    startWatching();
+    startTimer();
+  }
+
+  /** Load a recovered hike as a finished one, ready to save. */
+  function handleReviewDraft() {
+    if (!draft) return;
+    setTrack(draft.track);
+    setElapsed(draft.elapsed);
+    setSelectedTrail(trails.find((t) => t.id === draft.trailId) ?? null);
+    setTrailFitted(true);
+    wallStartRef.current = draft.startedAt;
+    endedAtRef.current = draft.updatedAt;
+    draftPointsRef.current = draft.track.length;
+    setDraft(null);
+    setTrackingState("stopped");
+    setSaveOpen(true);
+  }
+
+  function handleDiscardDraft() {
+    clearDraft();
+    setDraft(null);
   }
 
   function handleStartHike() {
@@ -434,9 +656,13 @@ export default function HikeTrackerInner({
   }
 
   function handleFinish() {
+    endedAtRef.current = Date.now();
     setTrackingState("stopped");
     stopWatching();
     stopTimer();
+    // Straight into the save dialog — a recorded hike nobody was asked to keep
+    // is a hike that gets lost.
+    if (track.length >= 2 && user) setSaveOpen(true);
   }
 
   function handleNewTrack() {
@@ -446,11 +672,45 @@ export default function HikeTrackerInner({
     setTrack([]);
     setCurrentPos(null);
     setElapsed(0);
+    setSavedTrackId(null);
+    setSaveError(null);
+  }
+
+  function handleSave() {
+    setSaveError(null);
+    saveMutation.mutate({
+      mountainId,
+      trailId: selectedTrail?.id,
+      startedAt: new Date(wallStartRef.current).toISOString(),
+      endedAt: new Date(endedAtRef.current || Date.now()).toISOString(),
+      durationSec: elapsed,
+      distanceMeters,
+      points: toWirePoints(track, wallStartRef.current),
+      isPublic: sharePublicly,
+    });
+  }
+
+  function handleExportGPX() {
+    downloadGPX({
+      name: `${mountainName} hike`,
+      startedAt: new Date(wallStartRef.current),
+      points: toWirePoints(track, wallStartRef.current),
+    });
+  }
+
+  /** Log the summit against this track, so the log form arrives pre-filled. */
+  function handleLogSummit() {
+    router.push(
+      savedTrackId
+        ? `/mountains/${mountainSlug}?track=${savedTrackId}`
+        : `/mountains/${mountainSlug}`
+    );
   }
 
   // ── Derived values ──────────────────────────────────────────────────────────
 
   const distanceMeters = totalDistance(track);
+  const gainMeters = cumulativeGain(track);
   const trackPoints: [number, number][] = track.map((p) => [p.lat, p.lng]);
   const trailPositions = selectedTrail ? parseTrailGeometry(selectedTrail.geometry) : null;
   const summitIcon = makeSummitIcon();
@@ -468,6 +728,93 @@ export default function HikeTrackerInner({
         onSelect={handleTrailSelect}
         onSkip={handleSkipTrail}
       />
+
+      {/* Recovered hike from an interrupted session */}
+      {draft && trackingState === "idle" && (
+        <Box sx={{ position: "absolute", top: 72, left: 16, right: 16, zIndex: 1100 }}>
+          <Alert
+            severity="info"
+            icon={<RouteIcon />}
+            sx={{ borderRadius: 2, alignItems: "center" }}
+            action={
+              <Stack direction="row" spacing={0.5}>
+                <Button size="small" onClick={handleResumeDraft}>Continue</Button>
+                <Button size="small" onClick={handleReviewDraft}>Save</Button>
+                <Button size="small" color="inherit" onClick={handleDiscardDraft}>Discard</Button>
+              </Stack>
+            }
+          >
+            Unfinished hike from {new Date(draft.startedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            {" · "}{formatDistance(totalDistance(draft.track))} · {formatDuration(draft.elapsed)}
+          </Alert>
+        </Box>
+      )}
+
+      {/* Save dialog */}
+      <Dialog
+        open={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle fontWeight={700}>Save this hike</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TerrainIcon color="primary" />
+              <Typography variant="body2" fontWeight={600}>
+                {mountainName}
+                {selectedTrail && (
+                  <Typography component="span" variant="body2" color="text.secondary">
+                    {" · "}{selectedTrail.name}
+                  </Typography>
+                )}
+              </Typography>
+            </Stack>
+
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Chip size="small" label={`⏱ ${formatDuration(elapsed)}`} />
+              <Chip size="small" label={`📏 ${formatDistance(distanceMeters)}`} />
+              {gainMeters !== null && gainMeters > 0 && (
+                <Chip size="small" label={`⛰ ${formatFeet(gainMeters)} gain`} />
+              )}
+              <Chip size="small" label={`${track.length} pts`} />
+            </Stack>
+
+            <FormControlLabel
+              control={
+                <Switch checked={sharePublicly} onChange={(e) => setSharePublicly(e.target.checked)} />
+              }
+              label={
+                <Typography variant="body2">
+                  Share this route publicly
+                  <Typography variant="caption" display="block" color="text.secondary">
+                    {sharePublicly
+                      ? "Other climbers will see it on this peak's page."
+                      : "Only you will be able to see it."}
+                  </Typography>
+                </Typography>
+              }
+            />
+
+            {saveError && <Alert severity="error">{saveError}</Alert>}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSaveOpen(false)} color="inherit">
+            Not now
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            startIcon={saveMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+          >
+            {saveMutation.isPending ? "Saving…" : "Save hike"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Map */}
       <MapContainer
@@ -583,6 +930,15 @@ export default function HikeTrackerInner({
               <Typography variant="caption" sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.6)" }}>Distance</Typography>
             </Paper>
 
+            {gainMeters !== null && gainMeters > 0 && (
+              <Paper sx={{ px: 2, py: 1, borderRadius: 2.5, bgcolor: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)", textAlign: "center", minWidth: 72 }}>
+                <Typography variant="h6" fontWeight={800} lineHeight={1.1} sx={{ color: "white" }}>
+                  {Math.round(gainMeters * 3.28084).toLocaleString()}
+                </Typography>
+                <Typography variant="caption" sx={{ fontSize: "0.65rem", color: "rgba(255,255,255,0.6)" }}>Gain (ft)</Typography>
+              </Paper>
+            )}
+
             {currentPos?.altitude != null && (
               <Paper sx={{ px: 2, py: 1, borderRadius: 2.5, bgcolor: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)", textAlign: "center", minWidth: 72 }}>
                 <Typography variant="h6" fontWeight={800} lineHeight={1.1} sx={{ color: "white" }}>
@@ -693,7 +1049,7 @@ export default function HikeTrackerInner({
                 onClick={handleNewTrack}
                 sx={{
                   borderRadius: 3,
-                  px: 3,
+                  px: 2.5,
                   py: 1.5,
                   fontWeight: 700,
                   bgcolor: "rgba(255,255,255,0.9)",
@@ -702,15 +1058,58 @@ export default function HikeTrackerInner({
                   "&:hover": { bgcolor: "white" },
                 }}
               >
-                New Track
+                New
               </Button>
+
+              {savedTrackId ? (
+                <Button
+                  component={NextLink}
+                  href={`/tracks/${savedTrackId}`}
+                  variant="outlined"
+                  startIcon={<RouteIcon />}
+                  sx={{
+                    borderRadius: 3,
+                    px: 2.5,
+                    py: 1.5,
+                    fontWeight: 700,
+                    bgcolor: "rgba(255,255,255,0.9)",
+                    color: "text.primary",
+                    borderColor: "rgba(255,255,255,0.6)",
+                    "&:hover": { bgcolor: "white" },
+                  }}
+                >
+                  View Hike
+                </Button>
+              ) : (
+                <Button
+                  variant="outlined"
+                  startIcon={<SaveIcon />}
+                  disabled={track.length < 2}
+                  // Signed-out hikers can still take the GPX away with them, so the
+                  // recording isn't wasted — it just can't live on their profile.
+                  onClick={() => (user ? setSaveOpen(true) : handleExportGPX())}
+                  sx={{
+                    borderRadius: 3,
+                    px: 2.5,
+                    py: 1.5,
+                    fontWeight: 700,
+                    bgcolor: "rgba(255,255,255,0.9)",
+                    color: "text.primary",
+                    borderColor: "rgba(255,255,255,0.6)",
+                    "&:hover": { bgcolor: "white" },
+                    "&.Mui-disabled": { bgcolor: "rgba(255,255,255,0.4)" },
+                  }}
+                >
+                  {user ? "Save Hike" : "Download GPX"}
+                </Button>
+              )}
+
               <Button
-                component={NextLink}
-                href={`/mountains/${mountainSlug}`}
+                onClick={handleLogSummit}
                 variant="contained"
                 sx={{
                   borderRadius: 3,
-                  px: 3,
+                  px: 2.5,
                   py: 1.5,
                   fontWeight: 700,
                   bgcolor: "#1d4ed8",
@@ -757,8 +1156,13 @@ export default function HikeTrackerInner({
         {trackingState === "stopped" && (
           <Stack direction="row" justifyContent="center" mt={1.5}>
             <Chip
-              label={`Hike complete · ${formatDuration(elapsed)} · ${formatDistance(distanceMeters)}`}
+              label={
+                savedTrackId
+                  ? `Saved · ${formatDuration(elapsed)} · ${formatDistance(distanceMeters)}`
+                  : `Hike complete · ${formatDuration(elapsed)} · ${formatDistance(distanceMeters)}`
+              }
               size="small"
+              icon={savedTrackId ? <CheckIcon sx={{ fontSize: "0.85rem !important", color: "white !important" }} /> : undefined}
               sx={{ bgcolor: "rgba(21,128,61,0.9)", color: "white", fontSize: "0.7rem", fontWeight: 600, height: 22 }}
             />
           </Stack>

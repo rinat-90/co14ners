@@ -48,6 +48,7 @@ import EventIcon from "@mui/icons-material/Event";
 import StarIcon from "@mui/icons-material/Star";
 import WhatshotIcon from "@mui/icons-material/Whatshot";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import RouteIcon from "@mui/icons-material/Route";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
@@ -58,6 +59,13 @@ import DifficultyChip from "@/components/mountains/DifficultyChip";
 import RangeLabel from "@/components/mountains/RangeLabel";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
+import {
+  downloadGPX,
+  formatFeet,
+  formatMiles,
+  formatTrackDuration,
+  parseTrackPoints,
+} from "@/lib/track";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -620,6 +628,7 @@ export default function ProfilePage() {
   const { data: activityHeatmap } = trpc.user.activityHeatmap.useQuery(undefined, { enabled: !!accessToken });
   const { data: myPlans } = trpc.plannedHike.myPlans.useQuery(undefined, { enabled: !!accessToken });
   const { data: myGroupHikes } = trpc.groupHike.mine.useQuery(undefined, { enabled: !!accessToken });
+  const { data: myTracks } = trpc.hikeTrack.myTracks.useQuery(undefined, { enabled: !!accessToken });
 
   const earnedTypes = new Set(achievements?.map((a) => a.type) ?? []);
   const earnedCount = earnedTypes.size;
@@ -642,6 +651,28 @@ export default function ProfilePage() {
   const removeGroupHikeRsvpMutation = trpc.groupHike.removeRsvp.useMutation({
     onSuccess: () => utils.groupHike.mine.invalidate(),
   });
+  const deleteTrackMutation = trpc.hikeTrack.remove.useMutation({
+    onSuccess: () => utils.hikeTrack.myTracks.invalidate(),
+  });
+
+  // The track list omits `points` (1,500 per row would make this tab heavy), so
+  // fetch the full track only when someone actually asks for the GPX file.
+  const [exportingTrackId, setExportingTrackId] = useState<string | null>(null);
+  async function handleExportTrack(trackId: string, mountainName: string) {
+    setExportingTrackId(trackId);
+    try {
+      const track = await utils.hikeTrack.get.fetch({ id: trackId });
+      if (track) {
+        downloadGPX({
+          name: mountainName,
+          startedAt: track.startedAt,
+          points: parseTrackPoints(track.points),
+        });
+      }
+    } finally {
+      setExportingTrackId(null);
+    }
+  }
 
   const updateProfileMutation = trpc.user.updateProfile.useMutation({
     onSuccess: (updated) => {
@@ -954,6 +985,69 @@ export default function ProfilePage() {
                               size="small"
                               disabled={removeGroupHikeRsvpMutation.isPending}
                               onClick={() => removeGroupHikeRsvpMutation.mutate({ groupHikeId: gh.id })}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Paper>
+                )}
+
+                {/* Recorded GPS tracks */}
+                {myTracks && myTracks.length > 0 && (
+                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 3 }}>
+                    <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
+                      <RouteIcon sx={{ fontSize: "1rem", color: "warning.main" }} />
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        My Recorded Hikes ({myTracks.length})
+                      </Typography>
+                    </Stack>
+                    <Stack divider={<Divider />} spacing={0}>
+                      {myTracks.map((t) => (
+                        <Box key={t.id} sx={{ py: 1.25, display: "flex", alignItems: "center", gap: 1.5 }}>
+                          <RouteIcon sx={{ fontSize: "1rem", color: "text.disabled", flexShrink: 0 }} />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                              <Typography
+                                component={NextLink}
+                                href={`/tracks/${t.id}`}
+                                variant="body2"
+                                fontWeight={600}
+                                sx={{ textDecoration: "none", color: "text.primary", "&:hover": { color: "primary.main" } }}
+                              >
+                                {t.mountain.name}
+                              </Typography>
+                              {t.completionId && (
+                                <Chip label="Summited" size="small" color="success" variant="outlined" sx={{ height: 16, fontSize: "0.55rem" }} />
+                              )}
+                              {!t.isPublic && <Chip label="Private" size="small" sx={{ height: 16, fontSize: "0.55rem" }} />}
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {new Date(t.startedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              {" · "}{formatMiles(t.distanceMeters)}
+                              {t.gainMeters !== null && ` · ${formatFeet(t.gainMeters)} gain`}
+                              {" · "}{formatTrackDuration(t.durationSec)}
+                            </Typography>
+                          </Box>
+                          <Tooltip title="Download as GPX">
+                            <IconButton
+                              size="small"
+                              disabled={exportingTrackId === t.id}
+                              onClick={() => handleExportTrack(t.id, t.mountain.name)}
+                            >
+                              {exportingTrackId === t.id
+                                ? <CircularProgress size={16} />
+                                : <FileDownloadIcon fontSize="small" />}
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete track">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              disabled={deleteTrackMutation.isPending}
+                              onClick={() => deleteTrackMutation.mutate({ id: t.id })}
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>

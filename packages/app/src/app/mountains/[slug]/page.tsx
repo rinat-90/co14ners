@@ -43,6 +43,8 @@ import AirIcon from "@mui/icons-material/Air";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ArticleIcon from "@mui/icons-material/Article";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import BackpackIcon from "@mui/icons-material/Backpack";
 import CloudIcon from "@mui/icons-material/Cloud";
 import ThunderstormIcon from "@mui/icons-material/Thunderstorm";
 import WaterDropIcon from "@mui/icons-material/WaterDrop";
@@ -89,6 +91,7 @@ import PhotoGallery from "@/components/mountains/PhotoGallery";
 import KudoButton from "@/components/KudoButton";
 import { useAuth } from "@/lib/auth-context";
 import { trpc } from "@/lib/trpc";
+import { formatFeet, formatMiles, formatTrackDuration } from "@/lib/track";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -115,6 +118,22 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 
 // ── Log Summit dialog (records completion + public review) ─────────────────────
 
+/** A recorded hike this summit is being logged from, when there is one. */
+type PrefillTrack = {
+  id: string;
+  startedAt: Date | string;
+  durationSec: number;
+  distanceMeters: number;
+  gainMeters: number | null;
+  trail: { id: string; name: string } | null;
+};
+
+/** yyyy-mm-dd in the viewer's own timezone, for a date input. */
+function toDateInputValue(value: Date | string): string {
+  const date = new Date(value);
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
 function LogSummitDialog({
   open,
   onClose,
@@ -124,6 +143,7 @@ function LogSummitDialog({
   trails,
   hasExistingReview,
   onAchievements,
+  track,
 }: {
   open: boolean;
   onClose: () => void;
@@ -133,11 +153,21 @@ function LogSummitDialog({
   trails: { id: string; name: string }[];
   hasExistingReview: boolean;
   onAchievements: (types: string[]) => void;
+  track?: PrefillTrack | null;
 }) {
   const utils = trpc.useUtils();
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
   const [trailId, setTrailId] = useState("");
+
+  // Arriving from a recorded hike: take the date and route straight off the track
+  // rather than making someone re-enter what the GPS already knows. Runs when the
+  // track resolves, which is after this dialog first mounts.
+  useEffect(() => {
+    if (!track) return;
+    setDate(toDateInputValue(track.startedAt));
+    if (track.trail) setTrailId(track.trail.id);
+  }, [track]);
   const [rating, setRating] = useState<number | null>(null);
   const [reviewTitle, setReviewTitle] = useState("");
   const [reviewBody, setReviewBody] = useState("");
@@ -221,6 +251,7 @@ function LogSummitDialog({
         trailId: trailId || undefined,
         isPrivate: false,
         photoUrl,
+        trackId: track?.id,
       });
     } else {
       logMutation.mutate(
@@ -230,6 +261,7 @@ function LogSummitDialog({
           trailId: trailId || undefined,
           isPrivate: false,
           photoUrl,
+          trackId: track?.id,
         },
         {
           onSuccess: (data) => {
@@ -254,6 +286,28 @@ function LogSummitDialog({
       <DialogTitle fontWeight={700}>Log Summit — {mountainName}</DialogTitle>
       <DialogContent>
         <Stack spacing={2.5} sx={{ mt: 1 }}>
+          {track && (
+            <Alert
+              severity="success"
+              icon={<RouteIcon />}
+              sx={{ borderRadius: 2 }}
+              action={
+                <Button size="small" component={NextLink} href={`/tracks/${track.id}`}>
+                  View
+                </Button>
+              }
+            >
+              <Typography variant="body2" fontWeight={600}>
+                From your recorded hike
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {formatMiles(track.distanceMeters)} ·{" "}
+                {track.gainMeters !== null && `${formatFeet(track.gainMeters)} gain · `}
+                {formatTrackDuration(track.durationSec)} — date and route pre-filled.
+              </Typography>
+            </Alert>
+          )}
+
           <Stack direction="row" spacing={2}>
             <TextField
               label="Summit date"
@@ -1638,6 +1692,13 @@ const DIFFICULTY_LABELS: Record<string, string> = {
   CLASS_5: "Class 5",
 };
 
+const CROWDING_LABEL: Record<string, string> = {
+  QUIET: "Quiet",
+  MODERATE: "Moderate traffic",
+  BUSY: "Busy",
+  UNKNOWN: "Traffic unreported",
+};
+
 function UploadTrailDialog({
   open,
   onClose,
@@ -2079,9 +2140,27 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
   const [selectedTrailId, setSelectedTrailId] = useState<string>("");
   const [achievementToast, setAchievementToast] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
+  const [prefillTrackId, setPrefillTrackId] = useState<string | null>(null);
 
   const utils = trpc.useUtils();
   const { data: mountain, isLoading, isError } = trpc.mountain.getBySlug.useQuery({ slug });
+
+  // `?track=<id>` means the hike tracker sent someone here to log the summit it
+  // just recorded. Read it from the URL directly rather than via useSearchParams,
+  // which would force this page behind a Suspense boundary at build time.
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("track");
+    if (!value) return;
+    setPrefillTrackId(value);
+    setLogOpen(true);
+    // Strip the param so a refresh or a back-navigation doesn't reopen the dialog.
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
+  const { data: prefillTrack } = trpc.hikeTrack.get.useQuery(
+    { id: prefillTrackId ?? "" },
+    { enabled: !!prefillTrackId }
+  );
 
   // Use the db id (from mountain data) for all user-specific queries
   const id = mountain?.id ?? "";
@@ -2124,6 +2203,10 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
     { mountainId: id },
     { enabled: !!id }
   );
+  const { data: digest } = trpc.ai.conditionsDigest.useQuery(
+    { mountainId: id },
+    { enabled: !!id }
+  );
 
   const utils2 = trpc.useUtils();
   const { data: checkIns } = trpc.conditions.forMountain.useQuery(
@@ -2147,6 +2230,10 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
   );
   const { data: condByMonth } = trpc.mountain.conditionsByMonth.useQuery(
     { mountainId: id },
+    { enabled: !!id }
+  );
+  const { data: recordedTracks } = trpc.hikeTrack.forMountain.useQuery(
+    { mountainId: id, limit: 5 },
     { enabled: !!id }
   );
   const { data: plannedHikers } = trpc.plannedHike.forMountain.useQuery(
@@ -2722,6 +2809,130 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
               )}
             </Paper>
 
+            {/* AI Conditions Digest — synthesized from the reports below */}
+            {digest && (
+              <Paper
+                sx={{
+                  p: { xs: 2, md: 2.5 },
+                  borderRadius: 3,
+                  mt: 2,
+                  border: "1px solid",
+                  borderColor: "primary.light",
+                  bgcolor: (theme) =>
+                    theme.palette.mode === "dark" ? "rgba(59,130,246,0.07)" : "rgba(59,130,246,0.04)",
+                }}
+              >
+                <Stack direction="row" spacing={1} alignItems="center" mb={1.25}>
+                  <AutoAwesomeIcon sx={{ fontSize: "1.1rem", color: "primary.main" }} />
+                  <Typography variant="subtitle2" fontWeight={700}>Conditions Digest</Typography>
+                  <Box flex={1} />
+                  <Chip
+                    label={`${digest.confidence.toLowerCase()} confidence`}
+                    size="small"
+                    color={
+                      digest.confidence === "HIGH"
+                        ? "success"
+                        : digest.confidence === "MEDIUM"
+                          ? "warning"
+                          : "default"
+                    }
+                    variant="outlined"
+                    sx={{ height: 20, fontSize: "0.65rem", fontWeight: 700 }}
+                  />
+                </Stack>
+
+                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                  {digest.summary}
+                </Typography>
+
+                {(digest.snowLine || digest.crowding !== "UNKNOWN") && (
+                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap mt={1.5}>
+                    {digest.snowLine && (
+                      <Chip
+                        icon={<AcUnitIcon />}
+                        label={`Snow from ${digest.snowLine}`}
+                        size="small"
+                        color="info"
+                        variant="outlined"
+                        sx={{ fontSize: "0.7rem", fontWeight: 600 }}
+                      />
+                    )}
+                    {digest.crowding !== "UNKNOWN" && (
+                      <Chip
+                        icon={<GroupsIcon />}
+                        label={CROWDING_LABEL[digest.crowding]}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontSize: "0.7rem", fontWeight: 600 }}
+                      />
+                    )}
+                  </Stack>
+                )}
+
+                {digest.hazards.length > 0 && (
+                  <Box mt={1.75}>
+                    <Stack direction="row" spacing={0.75} alignItems="center" mb={0.75}>
+                      <WarningAmberIcon sx={{ fontSize: "0.95rem", color: "warning.main" }} />
+                      <Typography variant="caption" fontWeight={700} color="warning.main">
+                        Reported hazards
+                      </Typography>
+                    </Stack>
+                    <Stack spacing={0.75}>
+                      {digest.hazards.map((h) => (
+                        <Box key={h.label}>
+                          <Typography variant="caption" fontWeight={700} display="block">{h.label}</Typography>
+                          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                            {h.detail}
+                          </Typography>
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+
+                {digest.gear.length > 0 && (
+                  <Box mt={1.75}>
+                    <Stack direction="row" spacing={0.75} alignItems="center" mb={0.75}>
+                      <BackpackIcon sx={{ fontSize: "0.95rem", color: "text.secondary" }} />
+                      <Typography variant="caption" fontWeight={700} color="text.secondary">
+                        Gear climbers used
+                      </Typography>
+                    </Stack>
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                      {digest.gear.map((g) => (
+                        <Chip key={g} label={g} size="small" sx={{ height: 20, fontSize: "0.65rem" }} />
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+
+                {digest.routeNotes.length > 0 && (
+                  <Box mt={1.75}>
+                    <Stack direction="row" spacing={0.75} alignItems="center" mb={0.75}>
+                      <RouteIcon sx={{ fontSize: "0.95rem", color: "text.secondary" }} />
+                      <Typography variant="caption" fontWeight={700} color="text.secondary">
+                        Route notes
+                      </Typography>
+                    </Stack>
+                    <Stack component="ul" spacing={0.5} sx={{ m: 0, pl: 2.25 }}>
+                      {digest.routeNotes.map((n) => (
+                        <Typography key={n} component="li" variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                          {n}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+
+                <Divider sx={{ my: 1.5 }} />
+                <Typography variant="caption" color="text.disabled" sx={{ display: "block", lineHeight: 1.5 }}>
+                  AI summary of {digest.sourceCount} community report{digest.sourceCount !== 1 ? "s" : ""} ·{" "}
+                  {new Date(digest.generatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}.
+                  Conditions change fast — this is what climbers wrote, not a forecast. Verify before you go.
+                </Typography>
+              </Paper>
+            )}
+
             {/* Recent Conditions */}
             {conditions && conditions.length > 0 && (
               <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
@@ -3061,6 +3272,64 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
               </Paper>
             )}
 
+            {/* Recorded Routes — GPS tracks other hikers saved on this peak */}
+            {recordedTracks && recordedTracks.length > 0 && (
+              <Paper sx={{ p: { xs: 2, md: 2.5 }, borderRadius: 3, mt: 2 }}>
+                <Stack direction="row" alignItems="center" spacing={1} mb={0.5}>
+                  <RouteIcon sx={{ fontSize: "1.1rem", color: "warning.main" }} />
+                  <Typography variant="subtitle2" fontWeight={700}>Recorded Routes</Typography>
+                </Stack>
+                <Typography variant="caption" color="text.secondary" display="block" mb={1.5}>
+                  Real GPS tracks from hikers on this peak
+                </Typography>
+                <Stack spacing={0} divider={<Divider />}>
+                  {recordedTracks.map((t) => (
+                    <Box
+                      key={t.id}
+                      component={NextLink}
+                      href={`/tracks/${t.id}`}
+                      sx={{
+                        py: 1.25,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 1.25,
+                        textDecoration: "none",
+                        color: "inherit",
+                        "&:hover .track-name": { color: "primary.main" },
+                      }}
+                    >
+                      <Avatar src={t.user.avatar ?? undefined} sx={{ width: 30, height: 30, fontSize: "0.75rem" }}>
+                        {initials(t.user.name, t.user.email)}
+                      </Avatar>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography className="track-name" variant="body2" fontWeight={600} noWrap sx={{ transition: "color 0.15s" }}>
+                          {t.user.name || t.user.email.split("@")[0]}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap display="block">
+                          {formatMiles(t.distanceMeters)}
+                          {t.gainMeters !== null && ` · ${formatFeet(t.gainMeters)} gain`}
+                          {` · ${formatTrackDuration(t.durationSec)}`}
+                        </Typography>
+                        <Typography variant="caption" color="text.disabled">
+                          {fmtDate(t.startedAt)}
+                          {t.trail && ` · ${t.trail.name}`}
+                        </Typography>
+                      </Box>
+                      {t.completionId && (
+                        <Chip
+                          label="Summited"
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                          sx={{ fontSize: "0.65rem", height: 20, flexShrink: 0 }}
+                        />
+                      )}
+                    </Box>
+                  ))}
+                </Stack>
+              </Paper>
+            )}
+
             {/* Best Time to Climb */}
             {condByMonth && condByMonth.some((m) => m.total > 0) && (() => {
               const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -3190,6 +3459,8 @@ export default function MountainDetailPage({ params }: { params: Promise<{ slug:
           trails={trails.map((t) => ({ id: t.id, name: t.name }))}
           hasExistingReview={!!myReview}
           onAchievements={setAchievementToast}
+          // Only the owner's own unlogged track can pre-fill the form.
+          track={prefillTrack?.isOwner && !prefillTrack.completionId ? prefillTrack : null}
         />
       )}
 

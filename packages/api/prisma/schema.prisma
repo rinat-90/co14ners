@@ -37,11 +37,11 @@ enum AchievementType {
 }
 
 enum NotificationType {
-  FOLLOW              // someone followed you
-  REVIEW_ON_SUMMIT    // someone reviewed a peak you've summited
-  COMMENT_ON_REPORT   // someone commented on your trip report
-  KUDO_RECEIVED       // someone kudoed your completion or trip report
-  GROUP_HIKE_RSVP     // someone RSVPed to your group hike
+  FOLLOW // someone followed you
+  REVIEW_ON_SUMMIT // someone reviewed a peak you've summited
+  COMMENT_ON_REPORT // someone commented on your trip report
+  KUDO_RECEIVED // someone kudoed your completion or trip report
+  GROUP_HIKE_RSVP // someone RSVPed to your group hike
 }
 
 enum RsvpStatus {
@@ -102,21 +102,22 @@ model User {
   refreshTokens      RefreshToken[]
   achievements       UserAchievement[]
   tripReports        TripReport[]
-  followers          Follow[]          @relation("UserFollowing")
-  following          Follow[]          @relation("UserFollowers")
-  notifications      Notification[]    @relation("NotificationRecipient")
-  actorNotifications Notification[]    @relation("NotificationActor")
+  followers          Follow[]                @relation("UserFollowing")
+  following          Follow[]                @relation("UserFollowers")
+  notifications      Notification[]          @relation("NotificationRecipient")
+  actorNotifications Notification[]          @relation("NotificationActor")
   comments           Comment[]
   gearChecklists     GearChecklist[]
-  mountainPhotos     MountainPhoto[]   @relation("MountainPhotoUploader")
+  mountainPhotos     MountainPhoto[]         @relation("MountainPhotoUploader")
   pushSubscriptions  PushSubscription[]
   mountainLists      MountainList[]
   notifPrefs         NotificationPreference?
   kudos              Kudo[]
   plannedHikes       PlannedHike[]
   conditionCheckIns  ConditionCheckIn[]
-  groupHikes         GroupHike[]         @relation("GroupHikeOrganizer")
+  groupHikes         GroupHike[]             @relation("GroupHikeOrganizer")
   groupHikeRsvps     GroupHikeRsvp[]
+  hikeTracks         HikeTrack[]
 }
 
 /// Per-user email notification opt-outs
@@ -132,15 +133,15 @@ model NotificationPreference {
 /// In-app notification
 model Notification {
   id         String           @id @default(cuid())
-  userId     String           // recipient
-  actorId    String           // who triggered it
+  userId     String // recipient
+  actorId    String // who triggered it
   type       NotificationType
-  mountainId String?          // for REVIEW_ON_SUMMIT notifications
+  mountainId String? // for REVIEW_ON_SUMMIT notifications
   read       Boolean          @default(false)
   createdAt  DateTime         @default(now())
 
-  user     User     @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
-  actor    User     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  user     User      @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actor    User      @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
   mountain Mountain? @relation(fields: [mountainId], references: [id], onDelete: SetNull)
 
   @@index([userId, read, createdAt(sort: Desc)])
@@ -191,18 +192,52 @@ model Mountain {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
-  trails         Trail[]
-  reviews        Review[]
-  favorites      Favorite[]
-  completions    Completion[]
-  tripReports    TripReport[]
-  notifications  Notification[]
-  gearChecklists GearChecklist[]
-  photos         MountainPhoto[]
-  listItems      MountainListItem[]
+  trails            Trail[]
+  reviews           Review[]
+  favorites         Favorite[]
+  completions       Completion[]
+  tripReports       TripReport[]
+  notifications     Notification[]
+  gearChecklists    GearChecklist[]
+  photos            MountainPhoto[]
+  listItems         MountainListItem[]
   plannedHikes      PlannedHike[]
   conditionCheckIns ConditionCheckIn[]
   groupHikes        GroupHike[]
+  conditionsDigest  MountainConditionsDigest?
+  hikeTracks        HikeTrack[]
+}
+
+/// AI-generated synthesis of what climbers have recently reported about a mountain.
+/// Written by a background job (never on the request path) and read straight from here.
+model MountainConditionsDigest {
+  id         String  @id @default(cuid())
+  mountainId String  @unique
+  /// Two or three sentences of plain-language synthesis
+  summary    String  @db.Text
+  /// Approximate snow line as reported, e.g. "~12,400 ft"; null when nobody mentioned one
+  snowLine   String?
+  /// [{ label, detail }] — conditions that could hurt someone
+  hazards    Json
+  /// string[] — gear reporters said they needed
+  gear       Json
+  /// string[] — route-specific beta
+  routeNotes Json
+  /// QUIET | MODERATE | BUSY | UNKNOWN
+  crowding   String
+  /// LOW | MEDIUM | HIGH — how much source material backed this digest
+  confidence String
+
+  /// Ids of the reports/notes/reviews the digest was grounded in, for citation
+  sourceIds   Json
+  sourceCount Int
+  /// Hash of the source set — lets a refresh no-op when nothing has changed
+  fingerprint String
+  /// Model id that produced this, so a model change can invalidate old rows
+  model       String
+  generatedAt DateTime @default(now())
+
+  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
 }
 
 /// Admin-uploaded photos for a mountain; one is flagged isMain → synced to Mountain.imageUrl
@@ -245,6 +280,7 @@ model Trail {
   mountain    Mountain     @relation(fields: [mountainId], references: [id], onDelete: Cascade)
   completions Completion[]
   tripReports TripReport[]
+  hikeTracks  HikeTrack[]
 }
 
 // ─── User activity models ──────────────────────────────────────────────────────
@@ -284,32 +320,32 @@ model Favorite {
 
 /// Detailed trip report written after a summit
 model TripReport {
-  id          String   @id @default(cuid())
-  userId      String
-  mountainId  String
-  trailId     String?
-  title       String
-  body        String   @db.Text
+  id         String   @id @default(cuid())
+  userId     String
+  mountainId String
+  trailId    String?
+  title      String
+  body       String   @db.Text
   /// Overall conditions: EXCELLENT | GOOD | FAIR | POOR
-  conditions  String?
-  photoUrl    String?
-  isPublic    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  conditions String?
+  photoUrl   String?
+  isPublic   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
-  trail    Trail?   @relation(fields: [trailId], references: [id])
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain Mountain  @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  trail    Trail?    @relation(fields: [trailId], references: [id])
   comments Comment[]
 }
 
 /// Comment on a trip report
 model Comment {
-  id           String     @id @default(cuid())
+  id           String   @id @default(cuid())
   tripReportId String
   userId       String
-  body         String     @db.Text
-  createdAt    DateTime   @default(now())
+  body         String   @db.Text
+  createdAt    DateTime @default(now())
 
   tripReport TripReport @relation(fields: [tripReportId], references: [id], onDelete: Cascade)
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -369,7 +405,7 @@ model MountainList {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   items MountainListItem[]
 
   @@index([userId])
@@ -447,8 +483,8 @@ model GroupHike {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  organizer User          @relation("GroupHikeOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
-  mountain  Mountain      @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  organizer User            @relation("GroupHikeOrganizer", fields: [organizerId], references: [id], onDelete: Cascade)
+  mountain  Mountain        @relation(fields: [mountainId], references: [id], onDelete: Cascade)
   rsvps     GroupHikeRsvp[]
 
   @@index([mountainId, hikeDate])
@@ -473,21 +509,63 @@ model GroupHikeRsvp {
 
 /// A logged summit — users can summit the same mountain multiple times
 model Completion {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   userId      String
   mountainId  String
   /// Specific trail used for this summit (optional)
   trailId     String?
   /// When set to true this entry is hidden from other users
-  isPrivate   Boolean   @default(false)
+  isPrivate   Boolean  @default(false)
   completedAt DateTime
   notes       String?
   /// Optional summit photo URL (uploaded via /upload/photo)
   photoUrl    String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mountain Mountain @relation(fields: [mountainId], references: [id], onDelete: Cascade)
-  trail    Trail?   @relation(fields: [trailId], references: [id])
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain Mountain   @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  trail    Trail?     @relation(fields: [trailId], references: [id])
+  /// The recorded GPS track this summit was logged from, if any
+  track    HikeTrack?
+}
+
+/// A GPS track recorded by the live hike tracker. Separate from Completion
+/// because plenty of tracked hikes end in a turnaround rather than a summit —
+/// the track is worth keeping either way.
+model HikeTrack {
+  id           String  @id @default(cuid())
+  userId       String
+  mountainId   String
+  /// Trail the hiker picked when starting, if they picked one
+  trailId      String?
+  /// Set when a summit is logged from this track
+  completionId String? @unique
+
+  startedAt         DateTime
+  endedAt           DateTime
+  /// Moving time in seconds — excludes paused stretches, which the server can't see
+  durationSec       Int
+  /// Measured client-side at full GPS resolution, before the points were thinned
+  distanceMeters    Int
+  /// Cumulative ascent in meters, derived from GPS altitude with a noise threshold
+  gainMeters        Int?
+  maxAltitudeMeters Int?
+
+  /// Downsampled route as [latitude, longitude, altitudeMeters | null, secondsFromStart][]
+  points     Json
+  /// Points actually stored, after downsampling
+  pointCount Int
+
+  /// False hides the track from everyone but its owner
+  isPublic  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mountain   Mountain    @relation(fields: [mountainId], references: [id], onDelete: Cascade)
+  trail      Trail?      @relation(fields: [trailId], references: [id])
+  completion Completion? @relation(fields: [completionId], references: [id], onDelete: SetNull)
+
+  @@index([mountainId, isPublic, startedAt])
+  @@index([userId, startedAt])
 }

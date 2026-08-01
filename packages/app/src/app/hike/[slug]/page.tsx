@@ -110,6 +110,7 @@ export default function HikePage({ params }: { params: Promise<{ slug: string }>
           </Box>
         ) : (
           <HikeTrackerInner
+            mountainId={mountain.id}
             mountainLat={mountain.latitude}
             mountainLng={mountain.longitude}
             mountainName={mountain.name}

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { TRPCError } from "@trpc/server";
 import type { AchievementType } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { digestService } from "../ai/digest.service.js";
 
 // Mount Elbert is the highest Colorado 14er at 14,440 ft
 const ELBERT_NAME = "Mount Elbert";
@@ -88,7 +89,15 @@ export const userService = {
 
   async logSummit(
     userId: string,
-    data: { mountainId: string; completedAt: string; notes?: string; trailId?: string; isPrivate: boolean; photoUrl?: string }
+    data: {
+      mountainId: string;
+      completedAt: string;
+      notes?: string;
+      trailId?: string;
+      isPrivate: boolean;
+      photoUrl?: string;
+      trackId?: string;
+    }
   ) {
     const completion = await prisma.completion.create({
       data: {
@@ -101,7 +110,25 @@ export const userService = {
         photoUrl: data.photoUrl,
       },
     });
+
+    // Attach the recorded hike this summit was logged from. Scoped by userId so
+    // a forged trackId can't hijack somebody else's track, and updateMany so an
+    // already-linked or missing track fails quietly rather than losing the summit.
+    if (data.trackId) {
+      await prisma.hikeTrack.updateMany({
+        where: { id: data.trackId, userId, completionId: null },
+        data: { completionId: completion.id },
+      });
+    }
+
     const newAchievements = await userService.checkAndUnlockAchievements(userId);
+
+    // Public notes feed the conditions digest, so a new one makes it stale.
+    // Private logs and note-less summits aren't sources — skip the work.
+    if (data.notes?.trim() && !data.isPrivate) {
+      digestService.refreshInBackground(data.mountainId);
+    }
+
     return { completion, newAchievements };
   },
 

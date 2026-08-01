@@ -7,6 +7,8 @@ export const logSummitSchema = z.object({
   trailId: z.string().optional(),
   isPrivate: z.boolean().default(false),
   photoUrl: z.string().url().optional(),
+  /** Recorded GPS track this summit came from, when logged straight off a hike. */
+  trackId: z.string().optional(),
 });
 
 export const updateCompletionSchema = z.object({

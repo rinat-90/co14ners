@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../push/push.service.js";
 import { sendReviewEmail } from "../lib/email.js";
+import { digestService } from "../ai/digest.service.js";
 
 export const reviewService = {
   async list(mountainId: string) {
@@ -40,6 +41,9 @@ export const reviewService = {
         hikedAt: data.hikedAt ? new Date(data.hikedAt) : undefined,
       },
     });
+
+    // A new review is a digest source — refresh it in the background.
+    digestService.refreshInBackground(data.mountainId);
 
     // Notify other users who have summited this peak (exclude the reviewer)
     const summiteers = await prisma.completion.findMany({

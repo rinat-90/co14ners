@@ -2,6 +2,7 @@ import { z } from "zod";
 import { router, publicProcedure, protectedProcedure } from "../trpc.js";
 import { prisma } from "../lib/prisma.js";
 import { TRPCError } from "@trpc/server";
+import { digestService } from "../ai/digest.service.js";
 
 const createSchema = z.object({
   mountainId: z.string(),
@@ -69,7 +70,7 @@ export const tripReportRouter = router({
   create: protectedProcedure
     .input(createSchema)
     .mutation(async ({ ctx, input }) => {
-      return prisma.tripReport.create({
+      const report = await prisma.tripReport.create({
         data: {
           userId: ctx.user.id,
           mountainId: input.mountainId,
@@ -85,6 +86,12 @@ export const tripReportRouter = router({
           trail: { select: trailSelect },
         },
       });
+
+      // A new public report changes what the conditions digest should say.
+      // Fire-and-forget: the author shouldn't wait on a model call.
+      if (input.isPublic) digestService.refreshInBackground(input.mountainId);
+
+      return report;
     }),
 
   // Update own report
