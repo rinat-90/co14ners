@@ -49,6 +49,8 @@ import StarIcon from "@mui/icons-material/Star";
 import WhatshotIcon from "@mui/icons-material/Whatshot";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import RouteIcon from "@mui/icons-material/Route";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import ImportGpxDialog from "@/components/ImportGpxDialog";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as ChartTooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
@@ -655,6 +657,8 @@ export default function ProfilePage() {
     onSuccess: () => utils.hikeTrack.myTracks.invalidate(),
   });
 
+  const [importOpen, setImportOpen] = useState(false);
+
   // The track list omits `points` (1,500 per row would make this tab heavy), so
   // fetch the full track only when someone actually asks for the GPX file.
   const [exportingTrackId, setExportingTrackId] = useState<string | null>(null);
@@ -995,15 +999,32 @@ export default function ProfilePage() {
                   </Paper>
                 )}
 
-                {/* Recorded GPS tracks */}
-                {myTracks && myTracks.length > 0 && (
-                  <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 3 }}>
+                {/* Recorded GPS tracks. Always shown, because the import button
+                    below is most useful to someone who has no tracks yet. */}
+                <Paper variant="outlined" sx={{ p: 2, borderRadius: 2, mb: 3 }}>
                     <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
                       <RouteIcon sx={{ fontSize: "1rem", color: "warning.main" }} />
-                      <Typography variant="subtitle2" fontWeight={700}>
-                        My Recorded Hikes ({myTracks.length})
+                      <Typography variant="subtitle2" fontWeight={700} sx={{ flex: 1 }}>
+                        My Recorded Hikes{myTracks && myTracks.length > 0 ? ` (${myTracks.length})` : ""}
                       </Typography>
+                      <Tooltip title="Import hikes from Gaia, Strava, CalTopo or AllTrails">
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          startIcon={<UploadFileIcon />}
+                          onClick={() => setImportOpen(true)}
+                          sx={{ borderRadius: 2 }}
+                        >
+                          Import GPX
+                        </Button>
+                      </Tooltip>
                     </Stack>
+                    {!myTracks || myTracks.length === 0 ? (
+                      <Typography variant="caption" color="text.secondary">
+                        Nothing recorded yet. Start a hike from any peak, or import the GPX files
+                        you already have.
+                      </Typography>
+                    ) : (
                     <Stack divider={<Divider />} spacing={0}>
                       {myTracks.map((t) => (
                         <Box key={t.id} sx={{ py: 1.25, display: "flex", alignItems: "center", gap: 1.5 }}>
@@ -1055,8 +1076,8 @@ export default function ProfilePage() {
                         </Box>
                       ))}
                     </Stack>
-                  </Paper>
-                )}
+                    )}
+                </Paper>
 
                 {completionsLoading ? (
                   Array.from({ length: 3 }).map((_, i) => (
@@ -1441,6 +1462,7 @@ export default function ProfilePage() {
         onClose={() => setEditReportTarget(null)}
         report={editReportTarget}
       />
+      <ImportGpxDialog open={importOpen} onClose={() => setImportOpen(false)} />
     </Box>
   );
 }
