@@ -35,6 +35,8 @@ import TerrainIcon from "@mui/icons-material/Terrain";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/lib/auth-context";
 import { downloadGPX, formatFeet, type TrackPoint } from "@/lib/track";
+import OfflineMapButton from "@/components/OfflineMapButton";
+import CloudOffIcon from "@mui/icons-material/CloudOff";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -467,8 +469,29 @@ export default function HikeTrackerInner({
       utils.hikeTrack.myTracks.invalidate();
       utils.hikeTrack.forMountain.invalidate({ mountainId });
     },
-    onError: (err) => setSaveError(err.message),
+    onError: (err) =>
+      setSaveError(
+        navigator.onLine
+          ? err.message
+          : "No signal — your hike is safe on this phone and will save itself once you reconnect."
+      ),
   });
+
+  // Watching connectivity lets the save dialog tell a lost hike apart from a
+  // server error, and lets a failed save retry itself. Read in an effect rather
+  // than at init so the server render and the first client render agree.
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
 
   // Inject pulse animation CSS on mount
   useEffect(() => {
@@ -690,6 +713,17 @@ export default function HikeTrackerInner({
     });
   }
 
+  // A hike that ends out of signal fails to save and keeps its local draft. Push
+  // it the moment the phone reconnects — the hiker is usually driving home by
+  // then and shouldn't have to come back to this screen and press Save again.
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
+  useEffect(() => {
+    if (!isOnline || !saveError || savedTrackId) return;
+    if (!user || saveMutation.isPending || track.length < 2) return;
+    handleSaveRef.current();
+  }, [isOnline, saveError, savedTrackId, user, saveMutation.isPending, track.length]);
+
   function handleExportGPX() {
     downloadGPX({
       name: `${mountainName} hike`,
@@ -798,7 +832,12 @@ export default function HikeTrackerInner({
               }
             />
 
-            {saveError && <Alert severity="error">{saveError}</Alert>}
+            {saveError && (
+              // Offline isn't an error the hiker can act on — the retry is automatic.
+              <Alert severity={isOnline ? "error" : "info"} icon={isOnline ? undefined : <CloudOffIcon />}>
+                {saveError}
+              </Alert>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -913,6 +952,17 @@ export default function HikeTrackerInner({
           px: 2,
         }}
       >
+        {/* Offline map download — only useful before setting off */}
+        {trackingState === "idle" && (
+          <Stack direction="row" justifyContent="center" mb={2}>
+            <OfflineMapButton
+              mountainLat={mountainLat}
+              mountainLng={mountainLng}
+              trailPositions={trailPositions}
+            />
+          </Stack>
+        )}
+
         {/* Stats bar */}
         {trackingState !== "idle" && trackingState !== "selecting" && (
           <Stack direction="row" spacing={1.5} justifyContent="center" mb={2} flexWrap="wrap" useFlexGap>

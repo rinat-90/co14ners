@@ -26,6 +26,21 @@ const withPWA = withPWAInit({
         },
       },
       {
+        // Must precede the generic image rule below — tiles are .png and would
+        // otherwise land in image-cache, whose 150-entry cap evicts a downloaded
+        // area almost immediately. Tiles at a given z/x/y never change, so
+        // CacheFirst is safe and a downloaded area survives a month offline.
+        urlPattern: /^https:\/\/[a-c]\.tile\.opentopomap\.org\//,
+        handler: "CacheFirst",
+        options: {
+          cacheName: "map-tile-cache",
+          expiration: { maxEntries: 4000, maxAgeSeconds: 2592000 },
+          // Leaflet requests tiles without CORS, so the responses are opaque and
+          // arrive as status 0. Omitting that here would silently cache nothing.
+          cacheableResponse: { statuses: [0, 200] },
+        },
+      },
+      {
         urlPattern: /^https:\/\/api\.open-meteo\.com\//,
         handler: "NetworkFirst",
         options: {
